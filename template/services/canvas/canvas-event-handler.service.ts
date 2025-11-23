@@ -13,10 +13,6 @@ export class CanvasEventHandlerService {
   private constraintService = inject(ObjectConstraintService);
   private layerManagementService = inject(LayerManagementService);
 
-  // Track frame's previous bounds for resize detection
-  private previousFrameBounds: { left: number; top: number; width: number; height: number } | null =
-    null;
-
   setupEventListeners(canvas: Canvas): void {
     // Selection events
     canvas.on('selection:created', (e) => {
@@ -78,9 +74,6 @@ export class CanvasEventHandlerService {
       }, 50);
     });
 
-    // Initialize previous frame bounds
-    this.updatePreviousFrameBounds();
-
     // Initialize layers
     this.layerManagementService.syncLayers();
   }
@@ -118,14 +111,14 @@ export class CanvasEventHandlerService {
     this.layerManagementService.syncLayers();
   }
 
+  /**
+   * Handle object moving - Apply frame constraints
+   */
   private handleObjectMoving(obj: FabricObject): void {
-    // Skip frame object
     const type = this.propertiesExtractor.getObjectType(obj);
-    if (type === VariableType.FRAME) {
-      return;
-    }
+    if (type === VariableType.FRAME) return;
 
-    // Apply constraints during moving
+    // Apply frame constraints (works for rotated objects too via bounding rect)
     if (this.constraintService.hasFrame()) {
       this.constraintService.applyFrameConstraints(obj);
     }
@@ -133,16 +126,19 @@ export class CanvasEventHandlerService {
     this.emitObjectProperties(obj);
   }
 
+  /**
+   * Handle object scaling - Apply scale + position constraints
+   */
   private handleObjectScaling(obj: FabricObject): void {
     const type = this.propertiesExtractor.getObjectType(obj);
 
-    // If scaling frame, handle frame resize in real-time
+    // If scaling frame, handle frame resize
     if (type === VariableType.FRAME) {
       this.handleFrameScaling(obj);
       return;
     }
 
-    // Apply scale constraints during scaling
+    // Apply scale constraints (includes position check)
     if (this.constraintService.hasFrame()) {
       this.constraintService.applyScaleConstraints(obj);
     }
@@ -150,25 +146,25 @@ export class CanvasEventHandlerService {
     this.emitObjectProperties(obj);
   }
 
+  /**
+   * Handle object rotating - Apply frame constraints
+   * Bounding rect approach works perfectly for rotated objects
+   */
   private handleObjectRotating(obj: FabricObject): void {
-    // Skip frame object
     const type = this.propertiesExtractor.getObjectType(obj);
-    if (type === VariableType.FRAME) {
-      return;
-    }
+    if (type === VariableType.FRAME) return;
 
-    // Apply rotation constraints (Figma-style clamping)
-    // This ensures object bounding box stays within frame during rotation
+    // Apply frame constraints (bounding rect handles rotation automatically)
     if (this.constraintService.hasFrame()) {
-      this.constraintService.applyRotationConstraints(obj);
+      this.constraintService.applyFrameConstraints(obj);
     }
 
     this.emitObjectProperties(obj);
   }
 
   /**
-   * Handle frame resize - adjust all objects to fit within new frame bounds
-   * This is called after frame scaling is complete
+   * Handle frame resize - Adjust all objects to fit within new frame bounds
+   * Called after frame scaling is complete (object:modified event)
    */
   private handleFrameResized(frameObj: FabricObject): void {
     const newFrameBounds = {
@@ -181,12 +177,8 @@ export class CanvasEventHandlerService {
     // Update frame object in state
     this.stateService.updateFrameObject(frameObj);
 
-    // Handle objects that may now be outside frame
-    // Using 'scale-and-reposition' strategy by default
-    this.constraintService.handleFrameResizeWithStrategy(newFrameBounds, 'scale-and-reposition');
-
-    // Update previous bounds for next resize
-    this.previousFrameBounds = newFrameBounds;
+    // Adjust all objects to fit within new frame
+    this.constraintService.handleFrameResize(newFrameBounds);
 
     // Emit frame properties
     this.emitObjectProperties(frameObj);
@@ -197,42 +189,12 @@ export class CanvasEventHandlerService {
 
   /**
    * Handle frame scaling in real-time (during the scaling operation)
-   * This provides visual feedback while user is resizing frame
+   * Only emits properties for preview, actual constraints applied after scaling complete
    */
   private handleFrameScaling(frameObj: FabricObject): void {
-    const currentFrameBounds = {
-      left: frameObj.left || 0,
-      top: frameObj.top || 0,
-      width: (frameObj.width || 0) * (frameObj.scaleX || 1),
-      height: (frameObj.height || 0) * (frameObj.scaleY || 1)
-    };
-
-    // Optional: Apply constraints in real-time during scaling
-    // This can be performance-intensive, so you may want to disable it
-    // and only apply constraints in handleFrameResized (after scaling is done)
-
-    // Uncomment the following lines for real-time constraint during frame scaling:
-    // this.constraintService.handleFrameResizeWithStrategy(
-    //   currentFrameBounds,
-    //   'scale-and-reposition'
-    // );
-
+    // Just emit properties for form update
+    // Actual constraints will be applied in handleFrameResized (object:modified)
     this.emitObjectProperties(frameObj);
-  }
-
-  /**
-   * Update previous frame bounds tracker
-   */
-  private updatePreviousFrameBounds(): void {
-    const frameObj = this.stateService.getFrameObject();
-    if (frameObj) {
-      this.previousFrameBounds = {
-        left: frameObj.left || 0,
-        top: frameObj.top || 0,
-        width: (frameObj.width || 0) * (frameObj.scaleX || 1),
-        height: (frameObj.height || 0) * (frameObj.scaleY || 1)
-      };
-    }
   }
 
   /**
