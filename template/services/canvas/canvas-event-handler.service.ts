@@ -57,6 +57,13 @@ export class CanvasEventHandlerService {
       }
     });
 
+    // Mouse click event for button handling
+    canvas.on('mouse:down', (e) => {
+      if (e.target) {
+        this.handleObjectClick(e.target);
+      }
+    });
+
     // Layer sync events
     canvas.on('object:added', (e) => {
       // Only sync if it's a new object creation, not during reordering
@@ -150,10 +157,10 @@ export class CanvasEventHandlerService {
       return;
     }
 
-    // During rotation, we need to ensure object stays within bounds
-    // This is more complex because rotation changes the bounding box
+    // Apply rotation constraints (Figma-style clamping)
+    // This ensures object bounding box stays within frame during rotation
     if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(obj);
+      this.constraintService.applyRotationConstraints(obj);
     }
 
     this.emitObjectProperties(obj);
@@ -225,6 +232,36 @@ export class CanvasEventHandlerService {
         width: (frameObj.width || 0) * (frameObj.scaleX || 1),
         height: (frameObj.height || 0) * (frameObj.scaleY || 1)
       };
+    }
+  }
+
+  /**
+   * Handle object click event
+   * Special handling for button objects với link navigation
+   */
+  private handleObjectClick(obj: FabricObject): void {
+    const type = this.propertiesExtractor.getObjectType(obj);
+
+    // Check if clicked object is a button
+    if (type === VariableType.BUTTON) {
+      const metadata = obj.get('customMetadata') as any;
+      const link = metadata?.link;
+
+      // If button has a link, open it in new tab
+      if (link && link.trim() !== '') {
+        console.log('Button clicked! Opening link:', link);
+
+        // Validate URL format
+        let url = link.trim();
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          url = 'https://' + url;
+        }
+
+        // Open link in new tab
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        console.log('Button clicked! (No link configured)');
+      }
     }
   }
 

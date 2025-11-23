@@ -69,57 +69,111 @@ export class ObjectCreationService {
     this.commandManager.executeCommand(command);
   }
 
+  /**
+   * Add image from URL or Data URL
+   * Supports both external URLs and base64 data URLs
+   *
+   * @param src - Image URL or Data URL (base64)
+   */
   addImage(src: string): void {
     const canvas = this.stateService.getCanvas();
 
     FabricImage.fromURL(src).then((img) => {
-      const originalWidth = img.width || 1;
-      const originalHeight = img.height || 1;
+      this.configureAndAddImage(img, canvas);
+    }).catch((error) => {
+      console.error('Error loading image:', error);
+    });
+  }
 
-      // If frame exists, fit image to frame
-      if (this.constraintService.hasFrame()) {
-        const frameBounds = this.getFrameBounds();
+  /**
+   * Add image from File object (local upload)
+   * Convert File to Data URL then add to canvas
+   *
+   * @param file - File object from input[type="file"]
+   */
+  addImageFromFile(file: File): void {
+    const canvas = this.stateService.getCanvas();
 
-        if (frameBounds) {
-          // Calculate scale to fit image within frame while maintaining aspect ratio
-          const scaleX = frameBounds.width / originalWidth;
-          const scaleY = frameBounds.height / originalHeight;
-          const scale = Math.min(scaleX, scaleY);
+    // Convert file to Data URL
+    const reader = new FileReader();
 
-          // Calculate centered position within frame
-          const scaledWidth = originalWidth * scale;
-          const scaledHeight = originalHeight * scale;
-          const left = frameBounds.left + (frameBounds.width - scaledWidth) / 2;
-          const top = frameBounds.top + (frameBounds.height - scaledHeight) / 2;
+    reader.onload = (event: ProgressEvent<FileReader>) => {
+      const dataUrl = event.target?.result as string;
 
-          img.set({
-            left: left,
-            top: top,
-            scaleX: scale,
-            scaleY: scale
-          });
-        }
-      } else {
-        // No frame, use default position
-        img.set({
-          left: 200,
-          top: 200,
-          scaleX: 1,
-          scaleY: 1
+      if (dataUrl) {
+        FabricImage.fromURL(dataUrl).then((img) => {
+          this.configureAndAddImage(img, canvas);
+        }).catch((error) => {
+          console.error('Error loading image from file:', error);
         });
       }
+    };
 
-      img.set('customMetadata', {
-        id: this.generateId(),
-        createdAt: Date.now(),
-        type: VariableType.IMAGE
+    reader.onerror = () => {
+      console.error('Error reading file');
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * Configure image position, scale, and add to canvas
+   * DRY: Extracted common logic from addImage and addImageFromFile
+   *
+   * @param img - FabricImage object
+   * @param canvas - Canvas instance
+   */
+  private configureAndAddImage(img: FabricImage, canvas: any): void {
+    const originalWidth = img.width || 1;
+    const originalHeight = img.height || 1;
+
+    // If frame exists, fit image to frame
+    if (this.constraintService.hasFrame()) {
+      const frameBounds = this.getFrameBounds();
+
+      if (frameBounds) {
+        // Calculate scale to fit image within frame while maintaining aspect ratio
+        const scaleX = frameBounds.width / originalWidth;
+        const scaleY = frameBounds.height / originalHeight;
+        const scale = Math.min(scaleX, scaleY);
+
+        // Calculate centered position within frame
+        const scaledWidth = originalWidth * scale;
+        const scaledHeight = originalHeight * scale;
+        const left = frameBounds.left + (frameBounds.width - scaledWidth) / 2;
+        const top = frameBounds.top + (frameBounds.height - scaledHeight) / 2;
+
+        img.set({
+          left: left,
+          top: top,
+          scaleX: scale,
+          scaleY: scale
+        });
+      }
+    } else {
+      // No frame, use default position
+      img.set({
+        left: 200,
+        top: 200,
+        scaleX: 1,
+        scaleY: 1
       });
+    }
 
-      canvas.add(img);
-      canvas.bringObjectToFront(img);
-      canvas.setActiveObject(img);
-      canvas.renderAll();
+    // Set custom metadata
+    img.set('customMetadata', {
+      id: this.generateId(),
+      createdAt: Date.now(),
+      type: VariableType.IMAGE
     });
+
+    // Add to canvas with command pattern for undo/redo
+    const command = new AddObjectCommand(canvas, img);
+    this.commandManager.executeCommand(command);
+
+    // Set as active object
+    canvas.setActiveObject(img);
+    canvas.renderAll();
   }
 
   addButton(

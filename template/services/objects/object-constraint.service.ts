@@ -15,6 +15,7 @@ export class ObjectConstraintService {
   /**
    * Apply frame constraints to an object
    * This ensures the object stays within frame boundaries
+   * Enhanced to handle rotation (bounding rect approach)
    */
   applyFrameConstraints(obj: FabricObject): ConstraintResult {
     const frame = this.stateService.getFrameObject();
@@ -23,13 +24,8 @@ export class ObjectConstraintService {
     const frameBounds = this.getFrameBounds();
     if (!frameBounds) return { constrained: false, needsScaling: false, needsRepositioning: false };
 
-    // Get object dimensions with current scale
-    const objWidth = (obj.width || 0) * (obj.scaleX || 1);
-    const objHeight = (obj.height || 0) * (obj.scaleY || 1);
-
-    // Get current object position
-    let left = obj.left || 0;
-    let top = obj.top || 0;
+    // Get object bounding rect (accounting for rotation)
+    const objBoundingRect = obj.getBoundingRect();
 
     // Frame boundaries
     const frameLeft = frameBounds.left;
@@ -38,29 +34,37 @@ export class ObjectConstraintService {
     const frameBottom = frameTop + frameBounds.height;
 
     let needsRepositioning = false;
+    let left = obj.left || 0;
+    let top = obj.top || 0;
 
-    // Constrain position to frame boundaries
-    // Object cannot go beyond left edge
-    if (left < frameLeft) {
-      left = frameLeft;
+    // Check if object bounding rect exceeds frame boundaries
+    // and calculate adjustment needed
+
+    // Left edge constraint
+    if (objBoundingRect.left < frameLeft) {
+      const adjustment = frameLeft - objBoundingRect.left;
+      left += adjustment;
       needsRepositioning = true;
     }
 
-    // Object cannot go beyond right edge
-    if (left + objWidth > frameRight) {
-      left = frameRight - objWidth;
+    // Right edge constraint
+    if (objBoundingRect.left + objBoundingRect.width > frameRight) {
+      const adjustment = (objBoundingRect.left + objBoundingRect.width) - frameRight;
+      left -= adjustment;
       needsRepositioning = true;
     }
 
-    // Object cannot go beyond top edge
-    if (top < frameTop) {
-      top = frameTop;
+    // Top edge constraint
+    if (objBoundingRect.top < frameTop) {
+      const adjustment = frameTop - objBoundingRect.top;
+      top += adjustment;
       needsRepositioning = true;
     }
 
-    // Object cannot go beyond bottom edge
-    if (top + objHeight > frameBottom) {
-      top = frameBottom - objHeight;
+    // Bottom edge constraint
+    if (objBoundingRect.top + objBoundingRect.height > frameBottom) {
+      const adjustment = (objBoundingRect.top + objBoundingRect.height) - frameBottom;
+      top -= adjustment;
       needsRepositioning = true;
     }
 
@@ -75,6 +79,75 @@ export class ObjectConstraintService {
       needsScaling: false,
       needsRepositioning
     };
+  }
+
+  /**
+   * Apply rotation constraints (Figma-style clamping)
+   * Ensures object bounding box stays within frame during rotation
+   *
+   * This is called during object:rotating event
+   */
+  applyRotationConstraints(obj: FabricObject): ConstraintResult {
+    const frame = this.stateService.getFrameObject();
+    if (!frame) return { constrained: false, needsScaling: false, needsRepositioning: false };
+
+    const frameBounds = this.getFrameBounds();
+    if (!frameBounds) return { constrained: false, needsScaling: false, needsRepositioning: false };
+
+    // Get object bounding rect after rotation
+    const objBoundingRect = obj.getBoundingRect();
+
+    // Frame boundaries
+    const frameLeft = frameBounds.left;
+    const frameTop = frameBounds.top;
+    const frameRight = frameLeft + frameBounds.width;
+    const frameBottom = frameTop + frameBounds.height;
+
+    // Check if bounding rect exceeds frame boundaries
+    const exceedsLeft = objBoundingRect.left < frameLeft;
+    const exceedsRight = objBoundingRect.left + objBoundingRect.width > frameRight;
+    const exceedsTop = objBoundingRect.top < frameTop;
+    const exceedsBottom = objBoundingRect.top + objBoundingRect.height > frameBottom;
+
+    // If object exceeds any boundary, clamp position
+    if (exceedsLeft || exceedsRight || exceedsTop || exceedsBottom) {
+      let left = obj.left || 0;
+      let top = obj.top || 0;
+
+      // Calculate center of object
+      const objCenterX = objBoundingRect.left + objBoundingRect.width / 2;
+      const objCenterY = objBoundingRect.top + objBoundingRect.height / 2;
+
+      // Clamp center to frame boundaries (with padding)
+      const padding = Math.max(objBoundingRect.width, objBoundingRect.height) / 2;
+      const clampedCenterX = Math.max(
+        frameLeft + padding,
+        Math.min(frameRight - padding, objCenterX)
+      );
+      const clampedCenterY = Math.max(
+        frameTop + padding,
+        Math.min(frameBottom - padding, objCenterY)
+      );
+
+      // Calculate adjustment needed
+      const adjustX = clampedCenterX - objCenterX;
+      const adjustY = clampedCenterY - objCenterY;
+
+      obj.set({
+        left: left + adjustX,
+        top: top + adjustY
+      });
+
+      obj.setCoords();
+
+      return {
+        constrained: true,
+        needsScaling: false,
+        needsRepositioning: true
+      };
+    }
+
+    return { constrained: false, needsScaling: false, needsRepositioning: false };
   }
 
   /**

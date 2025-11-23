@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, inject, ViewChild } from '@angular/core';
+import { Component, inject, OnInit, ViewChild } from '@angular/core';
 import { WrapOverlayComponent } from '@gsf/admin/app/shared/components';
 import { OverlayTriggerDirective } from '@gsf/admin/app/shared/directives';
 import {
@@ -14,6 +14,8 @@ import {
 import { DEFAULT_IMAGE_URL, variables } from '../../consts/variables.const';
 import { Variable, VariableType } from '../../types/variable.type';
 import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
+import { CommandManagerService } from '../../services/command/command-manager.service';
+import { Observable } from 'rxjs';
 
 @Component({
   selector: 'app-template-editor-header',
@@ -36,11 +38,25 @@ import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service
           <gsf-icon-svg [icon]="ICON_MAGIC_PEN" /> Variable
         </button>
 
-        <div class="flex items-center">
-          <button gsfButton appColor="tertiary" class="text-text-primary-2">
+        <div class="flex items-center gap-1">
+          <button
+            gsfButton
+            appColor="tertiary"
+            class="text-text-primary-2"
+            [disabled]="!(canUndo$ | async)"
+            (click)="onUndo()"
+            title="Undo (Ctrl+Z)"
+          >
             <gsf-icon-svg [icon]="ICON_UNDO" />
           </button>
-          <button gsfButton appColor="tertiary" class="text-text-primary-2">
+          <button
+            gsfButton
+            appColor="tertiary"
+            class="text-text-primary-2"
+            [disabled]="!(canRedo$ | async)"
+            (click)="onRedo()"
+            title="Redo (Ctrl+Y)"
+          >
             <gsf-icon-svg [icon]="ICON_REDO" />
           </button>
         </div>
@@ -83,8 +99,9 @@ import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service
     WrapOverlayComponent
   ]
 })
-export class TemplateEditorHeaderComponent {
+export class TemplateEditorHeaderComponent implements OnInit {
   private canvasService = inject(CanvasFacadeService);
+  private commandManager = inject(CommandManagerService);
 
   @ViewChild('overlayTrigger') overlayTrigger!: OverlayTriggerDirective;
 
@@ -96,6 +113,18 @@ export class TemplateEditorHeaderComponent {
 
   variables = variables;
 
+  // Undo/Redo observables
+  canUndo$!: Observable<boolean>;
+  canRedo$!: Observable<boolean>;
+
+  ngOnInit(): void {
+    // Subscribe to undo/redo availability
+    this.canUndo$ = this.commandManager.canUndo$;
+    this.canRedo$ = this.commandManager.canRedo$;
+
+    // Setup keyboard shortcuts
+    this.setupKeyboardShortcuts();
+  }
 
   private readonly actionMap: Partial<Record<VariableType, () => void>> = {
     text: () => this.canvasService.addText(),
@@ -106,5 +135,41 @@ export class TemplateEditorHeaderComponent {
   selectVariable(variable: Variable) {
     this.actionMap[variable.type]?.();
     this.overlayTrigger.closeOverlay();
+  }
+
+  /**
+   * Undo action
+   */
+  onUndo(): void {
+    this.commandManager.undo();
+  }
+
+  /**
+   * Redo action
+   */
+  onRedo(): void {
+    this.commandManager.redo();
+  }
+
+  /**
+   * Setup keyboard shortcuts for undo/redo
+   */
+  private setupKeyboardShortcuts(): void {
+    document.addEventListener('keydown', (event: KeyboardEvent) => {
+      // Ctrl+Z or Cmd+Z for Undo
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        this.onUndo();
+      }
+
+      // Ctrl+Y or Cmd+Y or Ctrl+Shift+Z for Redo
+      if (
+        ((event.ctrlKey || event.metaKey) && event.key === 'y') ||
+        ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'z')
+      ) {
+        event.preventDefault();
+        this.onRedo();
+      }
+    });
   }
 }

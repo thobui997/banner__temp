@@ -56,6 +56,10 @@ export class CanvasFacadeService {
     this.creationService.addImage(src);
   }
 
+  addImageFromFile(file: File): void {
+    this.creationService.addImageFromFile(file);
+  }
+
   addButton(text?: string): void {
     this.creationService.addButton(text);
   }
