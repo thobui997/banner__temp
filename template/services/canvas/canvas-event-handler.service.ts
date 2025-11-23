@@ -112,22 +112,30 @@ export class CanvasEventHandlerService {
   }
 
   /**
-   * Handle object moving - Apply frame constraints
+   * Handle object moving - Apply frame constraints in real-time
+   * Prevention-based approach prevents jitter and overshoot
    */
   private handleObjectMoving(obj: FabricObject): void {
     const type = this.propertiesExtractor.getObjectType(obj);
     if (type === VariableType.FRAME) return;
 
-    // Apply frame constraints (works for rotated objects too via bounding rect)
+    // Apply frame constraints (prevention-based, works for rotated objects)
     if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(obj);
+      const result = this.constraintService.applyFrameConstraints(obj);
+
+      // If constrained, force immediate render to prevent visual lag
+      if (result.constrained) {
+        const canvas = this.stateService.getCanvas();
+        canvas.requestRenderAll();
+      }
     }
 
     this.emitObjectProperties(obj);
   }
 
   /**
-   * Handle object scaling - Apply scale + position constraints
+   * Handle object scaling - Apply scale + position constraints in real-time
+   * Prevention-based approach prevents objects from exceeding frame size
    */
   private handleObjectScaling(obj: FabricObject): void {
     const type = this.propertiesExtractor.getObjectType(obj);
@@ -140,15 +148,21 @@ export class CanvasEventHandlerService {
 
     // Apply scale constraints (includes position check)
     if (this.constraintService.hasFrame()) {
-      this.constraintService.applyScaleConstraints(obj);
+      const result = this.constraintService.applyScaleConstraints(obj);
+
+      // If constrained, force immediate render to prevent visual lag
+      if (result.constrained) {
+        const canvas = this.stateService.getCanvas();
+        canvas.requestRenderAll();
+      }
     }
 
     this.emitObjectProperties(obj);
   }
 
   /**
-   * Handle object rotating - Apply frame constraints
-   * Bounding rect approach works perfectly for rotated objects
+   * Handle object rotating - Apply frame constraints in real-time
+   * Prevention-based bounding rect approach works perfectly for rotated objects
    */
   private handleObjectRotating(obj: FabricObject): void {
     const type = this.propertiesExtractor.getObjectType(obj);
@@ -156,7 +170,13 @@ export class CanvasEventHandlerService {
 
     // Apply frame constraints (bounding rect handles rotation automatically)
     if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(obj);
+      const result = this.constraintService.applyFrameConstraints(obj);
+
+      // If constrained, force immediate render to prevent visual lag
+      if (result.constrained) {
+        const canvas = this.stateService.getCanvas();
+        canvas.requestRenderAll();
+      }
     }
 
     this.emitObjectProperties(obj);

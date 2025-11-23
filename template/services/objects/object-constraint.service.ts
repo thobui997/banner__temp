@@ -25,7 +25,8 @@ export class ObjectConstraintService {
 
   /**
    * Apply frame constraints - Universal method cho move, scale, rotate
-   * Sử dụng bounding rect để handle cả rotated objects
+   * PREVENTION-BASED: Tính toán position limits để prevent overshoot
+   * Không bị jitter vì object không bao giờ vượt bounds
    */
   applyFrameConstraints(obj: FabricObject): ConstraintResult {
     const frameBounds = this.getFrameBounds();
@@ -42,32 +43,46 @@ export class ObjectConstraintService {
     const frameRight = frameLeft + frameBounds.width;
     const frameBottom = frameTop + frameBounds.height;
 
+    // Calculate offset between object center and bounding rect
+    const objLeft = obj.left || 0;
+    const objTop = obj.top || 0;
+    const offsetX = boundingRect.left - objLeft;
+    const offsetY = boundingRect.top - objTop;
+
+    // Calculate min/max allowed positions for object center
+    const minLeft = frameLeft - offsetX;
+    const maxLeft = frameRight - offsetX - boundingRect.width;
+    const minTop = frameTop - offsetY;
+    const maxTop = frameBottom - offsetY - boundingRect.height;
+
+    // Clamp object position to stay within bounds
+    let newLeft = objLeft;
+    let newTop = objTop;
     let needsRepositioning = false;
-    let adjustX = 0;
-    let adjustY = 0;
 
-    // Check và calculate adjustment nếu vượt biên
-    if (boundingRect.left < frameLeft) {
-      adjustX = frameLeft - boundingRect.left;
+    // Clamp X
+    if (objLeft < minLeft) {
+      newLeft = minLeft;
       needsRepositioning = true;
-    } else if (boundingRect.left + boundingRect.width > frameRight) {
-      adjustX = frameRight - (boundingRect.left + boundingRect.width);
+    } else if (objLeft > maxLeft) {
+      newLeft = maxLeft;
       needsRepositioning = true;
     }
 
-    if (boundingRect.top < frameTop) {
-      adjustY = frameTop - boundingRect.top;
+    // Clamp Y
+    if (objTop < minTop) {
+      newTop = minTop;
       needsRepositioning = true;
-    } else if (boundingRect.top + boundingRect.height > frameBottom) {
-      adjustY = frameBottom - (boundingRect.top + boundingRect.height);
+    } else if (objTop > maxTop) {
+      newTop = maxTop;
       needsRepositioning = true;
     }
 
-    // Apply adjustment
+    // Apply clamped position
     if (needsRepositioning) {
       obj.set({
-        left: (obj.left || 0) + adjustX,
-        top: (obj.top || 0) + adjustY
+        left: newLeft,
+        top: newTop
       });
       obj.setCoords();
     }
@@ -81,7 +96,7 @@ export class ObjectConstraintService {
 
   /**
    * Apply scale constraints - Prevent object from becoming larger than frame
-   * Sử dụng bounding rect để support rotated objects
+   * PREVENTION-BASED: Clamp scale để object không bao giờ lớn hơn frame
    */
   applyScaleConstraints(obj: FabricObject): ConstraintResult {
     const frameBounds = this.getFrameBounds();
@@ -92,26 +107,26 @@ export class ObjectConstraintService {
     // Get bounding rect (includes rotation)
     const boundingRect = obj.getBoundingRect();
 
-    // Check if object is larger than frame
     let needsScaling = false;
-    let scaleRatio = 1;
+    let needsRepositioning = false;
 
+    // Check if object is larger than frame
     if (boundingRect.width > frameBounds.width || boundingRect.height > frameBounds.height) {
-      // Calculate scale ratio to fit within frame
+      // Calculate maximum allowed scale
       const scaleX = frameBounds.width / boundingRect.width;
       const scaleY = frameBounds.height / boundingRect.height;
-      scaleRatio = Math.min(scaleX, scaleY);
+      const maxScale = Math.min(scaleX, scaleY);
 
-      // Apply scale
+      // Apply scale limit
       obj.set({
-        scaleX: (obj.scaleX || 1) * scaleRatio,
-        scaleY: (obj.scaleY || 1) * scaleRatio
+        scaleX: (obj.scaleX || 1) * maxScale,
+        scaleY: (obj.scaleY || 1) * maxScale
       });
       obj.setCoords();
       needsScaling = true;
     }
 
-    // After scaling, apply position constraints
+    // Apply position constraints to keep within bounds
     const positionResult = this.applyFrameConstraints(obj);
 
     return {
