@@ -43,14 +43,33 @@ export class ObjectCreationService {
     canvas.renderAll();
   }
 
+  /**
+   * Add text object to canvas
+   * Text position is constrained within frame if exists
+   */
   addText(text = 'Text Block', colorPreset?: Set<string>): void {
     const canvas = this.stateService.getCanvas();
     if (!canvas) return;
 
+    // Calculate text dimensions
+    const fontSize = 24;
+    const estimatedWidth = text.length * fontSize * 0.6; // Rough estimate
+    const estimatedHeight = fontSize * 1.5;
+
+    // Get constrained position if frame exists
+    const position = this.constraintService.hasFrame()
+      ? this.constraintService.getConstrainedCreationPosition(
+          estimatedWidth,
+          estimatedHeight,
+          100,
+          100
+        )
+      : { left: 100, top: 100 };
+
     const textObj = new IText(text, {
-      left: 100,
-      top: 100,
-      fontSize: 24,
+      left: position.left,
+      top: position.top,
+      fontSize: fontSize,
       fill: '#000000',
       fontFamily: 'Arial',
       fontWeight: 400
@@ -65,8 +84,13 @@ export class ObjectCreationService {
       type: VariableType.TEXT
     });
 
+    // Add with command pattern for undo/redo
     const command = new AddObjectCommand(canvas, textObj);
     this.commandManager.executeCommand(command);
+
+    // Set as active and render
+    canvas.setActiveObject(textObj);
+    canvas.requestRenderAll();
   }
 
   /**
@@ -176,18 +200,25 @@ export class ObjectCreationService {
     canvas.renderAll();
   }
 
+  /**
+   * Add button object to canvas
+   * Button position is constrained within frame if exists
+   * Uses command pattern for undo/redo support
+   */
   addButton(
     text = 'Click Here',
     link?: string,
     colorPreset?: Set<string>,
     bgColorPreset?: Set<string>
-  ) {
+  ): void {
     const canvas = this.stateService.getCanvas();
+    if (!canvas) return;
 
     const minWidth = 120;
     const paddingHorizontal = 32;
     const height = 40;
 
+    // Create button text
     const buttonText = new Textbox(text, {
       fontSize: 14,
       fill: '#FFFFFF',
@@ -203,6 +234,7 @@ export class ObjectCreationService {
     const textWidth = buttonText.getBoundingRect().width;
     const buttonWidth = Math.max(minWidth, textWidth + paddingHorizontal);
 
+    // Create button background
     const button = new Rect({
       left: 0,
       top: 0,
@@ -225,6 +257,7 @@ export class ObjectCreationService {
       ? this.constraintService.getConstrainedCreationPosition(buttonWidth, height, 100, 100)
       : { left: 100, top: 100 };
 
+    // Create button group
     const group = new Group([button, buttonText], {
       left: position.left,
       top: position.top,
@@ -232,6 +265,7 @@ export class ObjectCreationService {
       interactive: false
     });
 
+    // Set metadata
     group.set('customMetadata', {
       id: this.generateId(),
       createdAt: Date.now(),
@@ -242,21 +276,19 @@ export class ObjectCreationService {
       height: height
     });
 
+    // Set color presets
     const bgPresetArray = bgColorPreset ? Array.from(bgColorPreset) : ['#764FDB'];
     group.set('bgColorPreset', bgPresetArray);
 
     const presetArray = colorPreset ? Array.from(colorPreset) : ['#FFFFFF'];
     group.set('colorPreset', presetArray);
 
-    canvas.add(group);
-    canvas.bringObjectToFront(group);
+    // Add to canvas with command pattern for undo/redo
+    const command = new AddObjectCommand(canvas, group);
+    this.commandManager.executeCommand(command);
+
+    // Set as active object
     canvas.setActiveObject(group);
-
-    // Apply constraints after adding to canvas
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(group);
-    }
-
     canvas.requestRenderAll();
   }
 
