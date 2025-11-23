@@ -13,10 +13,6 @@ export class CanvasEventHandlerService {
   private constraintService = inject(ObjectConstraintService);
   private layerManagementService = inject(LayerManagementService);
 
-  // Track frame's previous bounds for resize detection
-  private previousFrameBounds: { left: number; top: number; width: number; height: number } | null =
-    null;
-
   setupEventListeners(canvas: Canvas): void {
     // Selection events
     canvas.on('selection:created', (e) => {
@@ -57,6 +53,13 @@ export class CanvasEventHandlerService {
       }
     });
 
+    // Mouse click event for button handling
+    canvas.on('mouse:down', (e) => {
+      if (e.target) {
+        this.handleObjectClick(e.target);
+      }
+    });
+
     // Layer sync events
     canvas.on('object:added', (e) => {
       // Only sync if it's a new object creation, not during reordering
@@ -70,9 +73,6 @@ export class CanvasEventHandlerService {
         this.layerManagementService.syncLayers();
       }, 50);
     });
-
-    // Initialize previous frame bounds
-    this.updatePreviousFrameBounds();
 
     // Initialize layers
     this.layerManagementService.syncLayers();
@@ -111,57 +111,80 @@ export class CanvasEventHandlerService {
     this.layerManagementService.syncLayers();
   }
 
+  /**
+   * Handle object moving - Apply frame constraints in real-time
+   * Prevention-based approach prevents jitter and overshoot
+   */
   private handleObjectMoving(obj: FabricObject): void {
-    // Skip frame object
     const type = this.propertiesExtractor.getObjectType(obj);
-    if (type === VariableType.FRAME) {
-      return;
-    }
+    if (type === VariableType.FRAME) return;
 
-    // Apply constraints during moving
+    // Apply frame constraints (prevention-based, works for rotated objects)
     if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(obj);
-    }
+      const result = this.constraintService.applyFrameConstraints(obj);
 
-    this.emitObjectProperties(obj);
-  }
-
-  private handleObjectScaling(obj: FabricObject): void {
-    const type = this.propertiesExtractor.getObjectType(obj);
-
-    // If scaling frame, handle frame resize in real-time
-    if (type === VariableType.FRAME) {
-      this.handleFrameScaling(obj);
-      return;
-    }
-
-    // Apply scale constraints during scaling
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyScaleConstraints(obj);
-    }
-
-    this.emitObjectProperties(obj);
-  }
-
-  private handleObjectRotating(obj: FabricObject): void {
-    // Skip frame object
-    const type = this.propertiesExtractor.getObjectType(obj);
-    if (type === VariableType.FRAME) {
-      return;
-    }
-
-    // During rotation, we need to ensure object stays within bounds
-    // This is more complex because rotation changes the bounding box
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(obj);
+      // If constrained, force immediate render to prevent visual lag
+      if (result.constrained) {
+        const canvas = this.stateService.getCanvas();
+        canvas.requestRenderAll();
+      }
     }
 
     this.emitObjectProperties(obj);
   }
 
   /**
-   * Handle frame resize - adjust all objects to fit within new frame bounds
-   * This is called after frame scaling is complete
+   * Handle object scaling - Apply scale + position constraints in real-time
+   * Prevention-based approach prevents objects from exceeding frame size
+   */
+  private handleObjectScaling(obj: FabricObject): void {
+    const type = this.propertiesExtractor.getObjectType(obj);
+
+    // If scaling frame, handle frame resize
+    if (type === VariableType.FRAME) {
+      this.handleFrameScaling(obj);
+      return;
+    }
+
+    // Apply scale constraints (includes position check)
+    if (this.constraintService.hasFrame()) {
+      const result = this.constraintService.applyScaleConstraints(obj);
+
+      // If constrained, force immediate render to prevent visual lag
+      if (result.constrained) {
+        const canvas = this.stateService.getCanvas();
+        canvas.requestRenderAll();
+      }
+    }
+
+    this.emitObjectProperties(obj);
+  }
+
+  /**
+   * Handle object rotating - Apply frame constraints in real-time
+   * Prevention-based bounding rect approach works perfectly for rotated objects
+   */
+  private handleObjectRotating(obj: FabricObject): void {
+    const type = this.propertiesExtractor.getObjectType(obj);
+    if (type === VariableType.FRAME) return;
+
+    // Apply frame constraints (bounding rect handles rotation automatically)
+    if (this.constraintService.hasFrame()) {
+      const result = this.constraintService.applyFrameConstraints(obj);
+
+      // If constrained, force immediate render to prevent visual lag
+      if (result.constrained) {
+        const canvas = this.stateService.getCanvas();
+        canvas.requestRenderAll();
+      }
+    }
+
+    this.emitObjectProperties(obj);
+  }
+
+  /**
+   * Handle frame resize - Adjust all objects to fit within new frame bounds
+   * Called after frame scaling is complete (object:modified event)
    */
   private handleFrameResized(frameObj: FabricObject): void {
     const newFrameBounds = {
@@ -174,12 +197,8 @@ export class CanvasEventHandlerService {
     // Update frame object in state
     this.stateService.updateFrameObject(frameObj);
 
-    // Handle objects that may now be outside frame
-    // Using 'scale-and-reposition' strategy by default
-    this.constraintService.handleFrameResizeWithStrategy(newFrameBounds, 'scale-and-reposition');
-
-    // Update previous bounds for next resize
-    this.previousFrameBounds = newFrameBounds;
+    // Adjust all objects to fit within new frame
+    this.constraintService.handleFrameResize(newFrameBounds);
 
     // Emit frame properties
     this.emitObjectProperties(frameObj);
@@ -190,41 +209,41 @@ export class CanvasEventHandlerService {
 
   /**
    * Handle frame scaling in real-time (during the scaling operation)
-   * This provides visual feedback while user is resizing frame
+   * Only emits properties for preview, actual constraints applied after scaling complete
    */
   private handleFrameScaling(frameObj: FabricObject): void {
-    const currentFrameBounds = {
-      left: frameObj.left || 0,
-      top: frameObj.top || 0,
-      width: (frameObj.width || 0) * (frameObj.scaleX || 1),
-      height: (frameObj.height || 0) * (frameObj.scaleY || 1)
-    };
-
-    // Optional: Apply constraints in real-time during scaling
-    // This can be performance-intensive, so you may want to disable it
-    // and only apply constraints in handleFrameResized (after scaling is done)
-
-    // Uncomment the following lines for real-time constraint during frame scaling:
-    // this.constraintService.handleFrameResizeWithStrategy(
-    //   currentFrameBounds,
-    //   'scale-and-reposition'
-    // );
-
+    // Just emit properties for form update
+    // Actual constraints will be applied in handleFrameResized (object:modified)
     this.emitObjectProperties(frameObj);
   }
 
   /**
-   * Update previous frame bounds tracker
+   * Handle object click event
+   * Special handling for button objects với link navigation
    */
-  private updatePreviousFrameBounds(): void {
-    const frameObj = this.stateService.getFrameObject();
-    if (frameObj) {
-      this.previousFrameBounds = {
-        left: frameObj.left || 0,
-        top: frameObj.top || 0,
-        width: (frameObj.width || 0) * (frameObj.scaleX || 1),
-        height: (frameObj.height || 0) * (frameObj.scaleY || 1)
-      };
+  private handleObjectClick(obj: FabricObject): void {
+    const type = this.propertiesExtractor.getObjectType(obj);
+
+    // Check if clicked object is a button
+    if (type === VariableType.BUTTON) {
+      const metadata = obj.get('customMetadata') as any;
+      const link = metadata?.link;
+
+      // If button has a link, open it in new tab
+      if (link && link.trim() !== '') {
+        console.log('Button clicked! Opening link:', link);
+
+        // Validate URL format
+        let url = link.trim();
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          url = 'https://' + url;
+        }
+
+        // Open link in new tab
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        console.log('Button clicked! (No link configured)');
+      }
     }
   }
 
