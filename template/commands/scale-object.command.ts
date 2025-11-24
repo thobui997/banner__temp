@@ -1,23 +1,23 @@
 import { Canvas, FabricObject } from 'fabric';
 import { Command } from '../types/command.type';
 
-export class MoveObjectCommand extends Command {
-  private oldProps: { left: number; top: number };
-  private newProps: { left: number; top: number };
+export class ScaleObjectCommand extends Command {
+  private oldProps: { scaleX: number; scaleY: number };
+  private newProps: { scaleX: number; scaleY: number };
 
   constructor(
     private canvas: Canvas,
     private object: FabricObject,
-    oldLeft: number,
-    oldTop: number,
-    newLeft: number,
-    newTop: number,
+    oldScaleX: number,
+    oldScaleY: number,
+    newScaleX: number,
+    newScaleY: number,
     private syncForm?: () => void
   ) {
     super();
 
-    this.oldProps = { left: oldLeft, top: oldTop };
-    this.newProps = { left: newLeft, top: newTop };
+    this.oldProps = { scaleX: oldScaleX, scaleY: oldScaleY };
+    this.newProps = { scaleX: newScaleX, scaleY: newScaleY };
   }
 
   execute(): void {
@@ -34,7 +34,7 @@ export class MoveObjectCommand extends Command {
     this.syncForm?.();
   }
 
-  private apply(props: { left: number; top: number }) {
+  private apply(props: { scaleX: number; scaleY: number }) {
     this.object.set(props);
     this.object.setCoords();
     this.canvas.renderAll();

@@ -14,27 +14,18 @@ export class LayerManagementService {
   private layersSubject = new BehaviorSubject<Layer[]>([]);
   private selectedLayerIdSubject = new BehaviorSubject<string | null>(null);
 
-  // Track if we're manually reordering to prevent sync conflicts
-  private isReordering = false;
-
   readonly layers$: Observable<Layer[]> = this.layersSubject.asObservable();
   readonly selectedLayerId$: Observable<string | null> = this.selectedLayerIdSubject.asObservable();
 
-  /**
-   * Sync layers from canvas objects
-   */
   syncLayers(): void {
     const canvas = this.stateService.getCanvas();
     if (!canvas) return;
-
-    // Skip sync if we're in the middle of reordering
-    if (this.isReordering) return;
 
     const objects = canvas.getObjects();
     const layers: Layer[] = [];
     let frameLayer: Layer | null = null;
 
-    objects.forEach((obj, index) => {
+    objects.forEach((obj) => {
       const metadata = obj.get('customMetadata') as any;
       const type = this.propertiesExtractor.getObjectType(obj);
 
@@ -45,11 +36,9 @@ export class LayerManagementService {
           type: type,
           visible: obj.visible !== false,
           locked: obj.lockMovementX === true,
-          order: index,
           fabricObject: obj
         };
 
-        // Separate frame from other layers
         if (type === VariableType.FRAME) {
           frameLayer = layer;
         } else {
@@ -58,16 +47,69 @@ export class LayerManagementService {
       }
     });
 
-    // Sort regular layers by order (highest first - top to bottom in UI)
-    layers.sort((a, b) => b.order - a.order);
+    layers.reverse();
 
-    // Add frame at the end if exists (always at bottom)
     if (frameLayer) {
-      (frameLayer as Layer).order = -1; // Ensure frame is always at bottom
       layers.push(frameLayer);
     }
 
     this.layersSubject.next(layers);
+  }
+
+  reorderLayers(previousIndex: number, currentIndex: number): void {
+    const canvas = this.stateService.getCanvas();
+    if (!canvas) return;
+
+    const layers = [...this.layersSubject.value];
+
+    if (previousIndex < 0 || previousIndex >= layers.length) return;
+    if (currentIndex < 0 || currentIndex >= layers.length) return;
+
+    const movedLayer = layers[previousIndex];
+    if (!movedLayer || !movedLayer.fabricObject) return;
+
+    if (movedLayer.type === VariableType.FRAME) {
+      console.warn('Cannot reorder frame layer');
+      return;
+    }
+
+    const frameIndex = layers.findIndex((l) => l.type === VariableType.FRAME);
+
+    if (frameIndex !== -1 && currentIndex >= frameIndex) {
+      console.warn('Cannot move layer below frame');
+      return;
+    }
+
+    const regularLayerCount = layers.length - (frameIndex !== -1 ? 1 : 0);
+
+    const targetFabricIndex = regularLayerCount - currentIndex - 1; 
+
+    const currentFabricObjects = canvas
+      .getObjects()
+      .filter((obj) => this.propertiesExtractor.getObjectType(obj) !== VariableType.FRAME);
+
+    const currentFabricIndex = currentFabricObjects.findIndex(
+      (obj) => obj === movedLayer.fabricObject
+    );
+
+    if (currentFabricIndex === -1) return;
+
+    const offset = targetFabricIndex - currentFabricIndex;
+
+    if (offset > 0) {
+      // Move to front
+      for (let i = 0; i < offset; i++) {
+        canvas.bringObjectForward(movedLayer.fabricObject);
+      }
+    } else if (offset < 0) {
+      // Move to back
+      for (let i = 0; i < Math.abs(offset); i++) {
+        canvas.sendObjectBackwards(movedLayer.fabricObject);
+      }
+    }
+
+    this.syncLayers();
+    canvas.requestRenderAll();
   }
 
   /**
@@ -171,101 +213,6 @@ export class LayerManagementService {
   }
 
   /**
-   * Reorder layers (drag and drop)
-   * Frame is excluded from reordering
-   */
-  reorderLayers(previousIndex: number, currentIndex: number): void {
-    const canvas = this.stateService.getCanvas();
-    if (!canvas) return;
-
-    // Set reordering flag to prevent sync conflicts
-    this.isReordering = true;
-
-    const layers = [...this.layersSubject.value];
-
-    // Separate frame from other layers
-    const frameLayer = layers.find((l) => l.type === VariableType.FRAME);
-    const regularLayers = layers.filter((l) => l.type !== VariableType.FRAME);
-
-    //  Validate indices before accessing array
-    if (previousIndex < 0 || previousIndex >= layers.length) {
-      console.warn('Invalid previousIndex:', previousIndex);
-      this.isReordering = false;
-      return;
-    }
-
-    if (currentIndex < 0 || currentIndex >= layers.length) {
-      console.warn('Invalid currentIndex:', currentIndex);
-      this.isReordering = false;
-      return;
-    }
-
-    // Get the layer being moved
-    const movedLayer = layers[previousIndex];
-
-    if (!movedLayer) {
-      console.warn('Layer at previousIndex not found');
-      this.isReordering = false;
-      return;
-    }
-
-    // Check if trying to drag frame
-    if (movedLayer.type === VariableType.FRAME) {
-      console.warn('Cannot reorder frame layer');
-      this.isReordering = false;
-      return;
-    }
-
-    // Check if trying to drag to frame position (last position)
-    if (frameLayer && currentIndex === layers.length - 1) {
-      console.warn('Cannot move layer below frame');
-      this.isReordering = false;
-      return;
-    }
-
-    // Find actual indices in regularLayers array
-    const regularPreviousIndex = regularLayers.findIndex((l) => l.id === movedLayer.id);
-
-    // Calculate target index in regularLayers (accounting for frame at end)
-    let regularCurrentIndex = currentIndex;
-    if (frameLayer && currentIndex >= regularLayers.length) {
-      regularCurrentIndex = regularLayers.length - 1;
-    }
-
-    if (regularPreviousIndex === -1) {
-      console.warn('Layer not found in regularLayers');
-      this.isReordering = false;
-      return;
-    }
-
-    // Reorder only regular layers
-    const [movedRegularLayer] = regularLayers.splice(regularPreviousIndex, 1);
-    regularLayers.splice(regularCurrentIndex, 0, movedRegularLayer);
-
-    // Update order based on new position in array
-    // Higher position in array = higher order = appears on top in canvas
-    regularLayers.forEach((layer, index) => {
-      if (layer) {
-        layer.order = regularLayers.length - index - 1;
-      }
-    });
-
-    // Combine back with frame at the end
-    const reorderedLayers = frameLayer ? [...regularLayers, frameLayer] : regularLayers;
-
-    // Update canvas object z-index
-    this.updateCanvasZIndex(reorderedLayers);
-
-    this.layersSubject.next(reorderedLayers);
-    canvas.requestRenderAll();
-
-    // Reset reordering flag after a short delay
-    setTimeout(() => {
-      this.isReordering = false;
-    }, 100);
-  }
-
-  /**
    * Get current layers
    */
   getLayers(): Layer[] {
@@ -302,37 +249,6 @@ export class LayerManagementService {
     if (metadata && metadata.id) {
       this.selectedLayerIdSubject.next(metadata.id);
     }
-  }
-
-  /**
-   * Update canvas z-index based on layer order
-   * Frame always stays at the back
-   */
-  private updateCanvasZIndex(layers: Layer[]): void {
-    const canvas = this.stateService.getCanvas();
-    if (!canvas) return;
-
-    // Separate frame and regular layers
-    const frameLayer = layers.find((l) => l.type === VariableType.FRAME);
-    const regularLayers = layers.filter((l) => l.type !== VariableType.FRAME);
-
-    const allObjects = canvas.getObjects();
-    const sortedLayers = [...regularLayers].sort((a, b) => a.order - b.order);
-
-    // Clear canvas (this removes all objects but keeps references)
-    allObjects.forEach((obj) => canvas.remove(obj));
-
-    // Add frame first (will be at back)
-    if (frameLayer && frameLayer.fabricObject) {
-      canvas.add(frameLayer.fabricObject);
-    }
-
-    // Add regular layers in order (lowest to highest)
-    sortedLayers.forEach((layer) => {
-      if (layer.fabricObject) {
-        canvas.add(layer.fabricObject);
-      }
-    });
   }
 
   /**

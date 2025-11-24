@@ -1,10 +1,12 @@
 import { DestroyRef, inject, Injectable } from '@angular/core';
-import { FormGroup } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CanvasStateService } from '../canvas/canvas-state.service';
-import { ObjectCreationService } from '../objects/object-creation.service';
+import { FormGroup } from '@angular/forms';
+import { AlignObjectCommand } from '../../commands/align-object.command';
+import { TransformObjectCommand } from '../../commands/transform-object.command';
 import { AlignmentType, TransformType } from '../../types/canvas-object.type';
 import { CanvasEventHandlerService } from '../canvas/canvas-event-handler.service';
+import { CanvasStateService } from '../canvas/canvas-state.service';
+import { CommandManagerService } from '../command/command-manager.service';
 import { TransformObjectService } from '../transforms/transform-object.service';
 
 /**
@@ -14,10 +16,10 @@ import { TransformObjectService } from '../transforms/transform-object.service';
 @Injectable()
 export class BasePropertiesService {
   protected canvasState = inject(CanvasStateService);
-  protected objectCreation = inject(ObjectCreationService);
   protected eventHandler = inject(CanvasEventHandlerService);
   protected transformService = inject(TransformObjectService);
   protected destroyRef = inject(DestroyRef);
+  protected commandManager = inject(CommandManagerService);
 
   /**
    * Handles object alignment within canvas or frame
@@ -27,18 +29,18 @@ export class BasePropertiesService {
     const obj = canvas.getActiveObject();
     if (!obj) return;
 
-    const frame = this.objectCreation.getFrameBounds();
+    const frame = this.canvasState.getFrameBounds();
     const canvasSize = this.canvasState.getCanvasDimensions();
 
     const newPos = frame
       ? this.transformService.alignObjectToFrame(obj, type, frame)
       : this.transformService.alignObject(obj, type, canvasSize.width, canvasSize.height);
 
-    obj.set(newPos);
-    obj.setCoords();
-    canvas.renderAll();
+    const command = new AlignObjectCommand(canvas, obj, newPos.left, newPos.top, () =>
+      this.eventHandler.emitCurrentObjectProperties()
+    );
 
-    this.eventHandler.emitCurrentObjectProperties();
+    this.commandManager.execute(command);
   }
 
   /**
@@ -49,10 +51,13 @@ export class BasePropertiesService {
     const obj = canvas.getActiveObject();
     if (!obj) return;
 
-    this.transformService.transformObject(obj, type);
-    canvas.renderAll();
+    const newProps = this.transformService.transformObject(obj, type);
 
-    this.eventHandler.emitCurrentObjectProperties();
+    const command = new TransformObjectCommand(canvas, obj, newProps, () =>
+      this.eventHandler.emitCurrentObjectProperties()
+    );
+
+    this.commandManager.execute(command);
   }
 
   /**
@@ -68,14 +73,11 @@ export class BasePropertiesService {
     mapToForm: (props: TCanvas) => TForm,
     onPropertiesReceived?: (props: TCanvas) => void
   ): void {
-    let syncingFromCanvas = false;
-
     this.canvasState.selectedObjectProperties$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((props) => {
         if (!props || props.type !== objectType) return;
 
-        syncingFromCanvas = true;
         const formValues = mapToForm(props as TCanvas);
 
         // Patch form without emitting to prevent circular updates
@@ -85,8 +87,6 @@ export class BasePropertiesService {
             control.setValue((formValues as any)[key], { emitEvent: false });
           }
         });
-
-        syncingFromCanvas = false;
 
         // Execute custom callback if provided
         onPropertiesReceived?.(props as TCanvas);

@@ -7,13 +7,13 @@ import {
   FrameProperties,
   ImageProperties
 } from '../../types/canvas-object.type';
+import { Layer } from '../../types/layer.type';
+import { LayerManagementService } from '../layers/layer-management.service';
 import { ObjectCreationService } from '../objects/object-creation.service';
 import { ObjectUpdateService } from '../objects/object-update.service';
 import { CanvasEventHandlerService } from './canvas-event-handler.service';
 import { CanvasInitializationService } from './canvas-initialization.service';
 import { CanvasStateService } from './canvas-state.service';
-import { LayerManagementService } from '../layers/layer-management.service';
-import { Layer } from '../../types/layer.type';
 
 @Injectable()
 export class CanvasFacadeService {
@@ -61,29 +61,25 @@ export class CanvasFacadeService {
   }
 
   // Object updates
-  updateObjectProperties(properties: Partial<CanvasObjectProperties>, skipRender = false): void {
-    this.updateService.updateObjectProperties(properties, skipRender);
+  updateObjectProperties(properties: Partial<CanvasObjectProperties>): void {
+    this.updateService.updateObjectProperties(properties);
   }
 
-  updateImageProperties(properties: Partial<ImageProperties>, skipRender = false): void {
-    this.updateService.updateImageProperties(properties, skipRender);
+  updateImageProperties(properties: Partial<ImageProperties>): void {
+    this.updateService.updateObjectProperties(properties);
   }
 
-  updateButtonProperties(properties: Partial<ButtonProperties>, skipRender = false): void {
-    this.updateService.updateObjectProperties(properties, skipRender);
+  updateButtonProperties(properties: Partial<ButtonProperties>): void {
+    this.updateService.updateObjectProperties(properties);
   }
 
-  updateFrameProperties(properties: Partial<FrameProperties>, skipRender = false): void {
-    this.updateService.updateObjectProperties(properties, skipRender);
-  }
-
-  updateSelectedObject(properties: any): void {
-    this.updateService.updateSelectedObject(properties);
+  updateFrameProperties(properties: Partial<FrameProperties>): void {
+    this.updateService.updateObjectProperties(properties);
   }
 
   // Queries
   getFrameBounds(): { left: number; top: number; width: number; height: number } | null {
-    return this.creationService.getFrameBounds();
+    return this.stateService.getFrameBounds();
   }
 
   hasFrame(): boolean {
@@ -122,5 +118,51 @@ export class CanvasFacadeService {
 
   reorderLayers(previousIndex: number, currentIndex: number): void {
     this.layerManagementService.reorderLayers(previousIndex, currentIndex);
+  }
+
+  exportTemplateToJson() {
+    const canvas = this.stateService.getCanvas();
+    return canvas.toDatalessJSON(['colorPreset', 'bgColorPreset', 'attachments', 'customMetadata']);
+  }
+
+  generateThumbnailBlob(size = 300): Promise<Blob> {
+    const canvas = this.stateService.getCanvas();
+    const frame = this.stateService.getFrameObject();
+
+    return new Promise((resolve, reject) => {
+      if (!frame) {
+        reject(new Error('No frame found'));
+        return;
+      }
+
+      try {
+        const frameBounds = frame.getBoundingRect();
+        const scale = size / frameBounds.width;
+
+        const dataURL = canvas.toDataURL({
+          left: frameBounds.left,
+          top: frameBounds.top,
+          width: frameBounds.width,
+          height: frameBounds.height,
+          multiplier: scale,
+          format: 'jpeg',
+          quality: 1,
+          enableRetinaScaling: false
+        });
+
+        fetch(dataURL)
+          .then((res) => res.blob())
+          .then((blob) => resolve(blob))
+          .catch((err) => reject(err));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  async generateThumbnailFile(size = 300, fileName?: string): Promise<File> {
+    const blob = await this.generateThumbnailBlob(size);
+    const name = fileName || `thumbnail-${Date.now()}.jpeg`;
+    return new File([blob], name, { type: 'image/jpeg' });
   }
 }

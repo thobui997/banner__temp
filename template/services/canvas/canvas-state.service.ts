@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Canvas, FabricObject } from 'fabric';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { Layer } from '../../types/layer.type';
 import { CanvasObjectProperties } from '../../types/canvas-object.type';
 
 @Injectable()
@@ -30,7 +29,6 @@ export class CanvasStateService {
     return this.canvas;
   }
 
-
   updateSelectedObject(object: FabricObject | null): void {
     this.selectedObjectSubject.next(object);
   }
@@ -55,6 +53,21 @@ export class CanvasStateService {
     return {
       width: this.canvas.width || 0,
       height: this.canvas.height || 0
+    };
+  }
+
+  getFrameBounds(): { left: number; top: number; width: number; height: number } | null {
+    const frameObject = this.getFrameObject();
+
+    if (!frameObject) {
+      return null;
+    }
+
+    return {
+      left: frameObject.left || 0,
+      top: frameObject.top || 0,
+      width: frameObject.width ? frameObject.width * frameObject.scaleX : 0,
+      height: frameObject.height ? frameObject.height * frameObject.scaleY : 0
     };
   }
 

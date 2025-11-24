@@ -1,23 +1,21 @@
 import { Canvas, FabricObject } from 'fabric';
 import { Command } from '../types/command.type';
 
-export class MoveObjectCommand extends Command {
-  private oldProps: { left: number; top: number };
-  private newProps: { left: number; top: number };
+export class RotateObjectCommand extends Command {
+  private oldProps: { angle: number };
+  private newProps: { angle: number };
 
   constructor(
     private canvas: Canvas,
     private object: FabricObject,
-    oldLeft: number,
-    oldTop: number,
-    newLeft: number,
-    newTop: number,
+    oldAngle: number,
+    newAngle: number,
     private syncForm?: () => void
   ) {
     super();
 
-    this.oldProps = { left: oldLeft, top: oldTop };
-    this.newProps = { left: newLeft, top: newTop };
+    this.oldProps = { angle: oldAngle };
+    this.newProps = { angle: newAngle };
   }
 
   execute(): void {
@@ -34,7 +32,7 @@ export class MoveObjectCommand extends Command {
     this.syncForm?.();
   }
 
-  private apply(props: { left: number; top: number }) {
+  private apply(props: { angle: number }) {
     this.object.set(props);
     this.object.setCoords();
     this.canvas.renderAll();

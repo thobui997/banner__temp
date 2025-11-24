@@ -1,30 +1,51 @@
-import { Canvas, FabricObject } from 'fabric/*';
+import { Canvas, FabricObject } from 'fabric';
 import { Command } from '../types/command.type';
 
 export class UpdatePropertiesCommand extends Command {
   private oldProperties: Record<string, any> = {};
+  private validNewProps: Record<string, any> = {};
+  private syncForm?: () => void;
 
   constructor(
     private canvas: Canvas,
     private object: FabricObject,
-    private newProperties: Record<string, any>
+    newProperties: Record<string, any>,
+    syncForm?: () => void
   ) {
     super();
-    // Store old properties
-    Object.keys(newProperties).forEach((key) => {
-      this.oldProperties[key] = (object as any)[key];
+
+    Object.entries(newProperties).forEach(([key, value]) => {
+      if (value !== undefined) {
+        this.validNewProps[key] = value;
+        this.oldProperties[key] = this.object.get(key);
+      }
     });
+
+    this.syncForm = syncForm;
   }
 
   execute(): void {
-    this.object.set(this.newProperties);
-    this.object.setCoords();
-    this.canvas.requestRenderAll();
+    this.applyProperties(true);
   }
 
   undo(): void {
-    this.object.set(this.oldProperties);
+    this.applyProperties(false);
+    this.syncForm?.();
+  }
+
+  override redo(): void {
+    this.applyProperties(true);
+    this.syncForm?.();
+  }
+
+  private applyProperties(useNewProperties: boolean) {
+    const properties = useNewProperties ? this.validNewProps : this.oldProperties;
+
+    Object.entries(properties).forEach(([key, value]) => {
+      this.object.set(key as any, value);
+    });
+
     this.object.setCoords();
-    this.canvas.requestRenderAll();
+    this.canvas.renderAll();
   }
 }

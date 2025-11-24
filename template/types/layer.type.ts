@@ -1,3 +1,4 @@
+import { FabricObject } from 'fabric/*';
 import { VariableType } from './variable.type';
 
 export interface Layer {
@@ -6,6 +7,5 @@ export interface Layer {
   type: VariableType;
   visible: boolean;
   locked: boolean;
-  order: number;
-  fabricObject?: any;
+  fabricObject?: FabricObject;
 }

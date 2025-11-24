@@ -3,15 +3,13 @@ import { FabricImage, Group, IText, Rect, Textbox } from 'fabric';
 import { nanoid } from 'nanoid';
 import { VariableType } from '../../consts/variables.const';
 import { CanvasStateService } from '../canvas/canvas-state.service';
-import { ObjectConstraintService } from './object-constraint.service';
-import { CommandManagerService } from '../command/command-manager.service';
 import { AddObjectCommand } from '../../commands/add-object.command';
+import { CommandManagerService } from '../command/command-manager.service';
 
 @Injectable()
 export class ObjectCreationService {
   private stateService = inject(CanvasStateService);
-  private constraintService = inject(ObjectConstraintService);
-  private commandManager = inject(CommandManagerService);
+  private commandManger = inject(CommandManagerService);
 
   addFrame(width: number, height: number): void {
     const canvas = this.stateService.getCanvas();
@@ -45,11 +43,13 @@ export class ObjectCreationService {
 
   addText(text = 'Text Block', colorPreset?: Set<string>): void {
     const canvas = this.stateService.getCanvas();
-    if (!canvas) return;
+
+    // Get constrained position if frame exists
+    const position = { left: 100, top: 100 };
 
     const textObj = new IText(text, {
-      left: 100,
-      top: 100,
+      left: position.left,
+      top: position.top,
       fontSize: 24,
       fill: '#000000',
       fontFamily: 'Arial',
@@ -66,60 +66,29 @@ export class ObjectCreationService {
     });
 
     const command = new AddObjectCommand(canvas, textObj);
-    this.commandManager.executeCommand(command);
+    this.commandManger.execute(command);
   }
 
-  addImage(src: string): void {
+  async addImage(src: string) {
     const canvas = this.stateService.getCanvas();
 
-    FabricImage.fromURL(src).then((img) => {
-      const originalWidth = img.width || 1;
-      const originalHeight = img.height || 1;
+    const imgObj = await FabricImage.fromURL(src, { crossOrigin: 'anonymous' });
 
-      // If frame exists, fit image to frame
-      if (this.constraintService.hasFrame()) {
-        const frameBounds = this.getFrameBounds();
-
-        if (frameBounds) {
-          // Calculate scale to fit image within frame while maintaining aspect ratio
-          const scaleX = frameBounds.width / originalWidth;
-          const scaleY = frameBounds.height / originalHeight;
-          const scale = Math.min(scaleX, scaleY);
-
-          // Calculate centered position within frame
-          const scaledWidth = originalWidth * scale;
-          const scaledHeight = originalHeight * scale;
-          const left = frameBounds.left + (frameBounds.width - scaledWidth) / 2;
-          const top = frameBounds.top + (frameBounds.height - scaledHeight) / 2;
-
-          img.set({
-            left: left,
-            top: top,
-            scaleX: scale,
-            scaleY: scale
-          });
-        }
-      } else {
-        // No frame, use default position
-        img.set({
-          left: 200,
-          top: 200,
-          scaleX: 1,
-          scaleY: 1
-        });
-      }
-
-      img.set('customMetadata', {
-        id: this.generateId(),
-        createdAt: Date.now(),
-        type: VariableType.IMAGE
-      });
-
-      canvas.add(img);
-      canvas.bringObjectToFront(img);
-      canvas.setActiveObject(img);
-      canvas.renderAll();
+    imgObj.set({
+      left: 200,
+      top: 200,
+      scaleX: 1,
+      scaleY: 1
     });
+
+    imgObj.set('customMetadata', {
+      id: this.generateId(),
+      createdAt: Date.now(),
+      type: VariableType.IMAGE
+    });
+
+    const command = new AddObjectCommand(canvas, imgObj);
+    this.commandManger.execute(command);
   }
 
   addButton(
@@ -166,19 +135,16 @@ export class ObjectCreationService {
       top: 0
     });
 
-    // Get constrained position if frame exists
-    const position = this.constraintService.hasFrame()
-      ? this.constraintService.getConstrainedCreationPosition(buttonWidth, height, 100, 100)
-      : { left: 100, top: 100 };
+    const position = { left: 100, top: 100 };
 
-    const group = new Group([button, buttonText], {
+    const groupObj = new Group([button, buttonText], {
       left: position.left,
       top: position.top,
       subTargetCheck: false,
       interactive: false
     });
 
-    group.set('customMetadata', {
+    groupObj.set('customMetadata', {
       id: this.generateId(),
       createdAt: Date.now(),
       type: VariableType.BUTTON,
@@ -189,36 +155,13 @@ export class ObjectCreationService {
     });
 
     const bgPresetArray = bgColorPreset ? Array.from(bgColorPreset) : ['#764FDB'];
-    group.set('bgColorPreset', bgPresetArray);
+    groupObj.set('bgColorPreset', bgPresetArray);
 
     const presetArray = colorPreset ? Array.from(colorPreset) : ['#FFFFFF'];
-    group.set('colorPreset', presetArray);
+    groupObj.set('colorPreset', presetArray);
 
-    canvas.add(group);
-    canvas.bringObjectToFront(group);
-    canvas.setActiveObject(group);
-
-    // Apply constraints after adding to canvas
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(group);
-    }
-
-    canvas.requestRenderAll();
-  }
-
-  getFrameBounds(): { left: number; top: number; width: number; height: number } | null {
-    const frameObject = this.stateService.getFrameObject();
-
-    if (!frameObject) {
-      return null;
-    }
-
-    return {
-      left: frameObject.left || 0,
-      top: frameObject.top || 0,
-      width: frameObject.width ? frameObject.width * frameObject.scaleX : 0,
-      height: frameObject.height ? frameObject.height * frameObject.scaleY : 0
-    };
+    const command = new AddObjectCommand(canvas, groupObj);
+    this.commandManger.execute(command);
   }
 
   private generateId(): string {

@@ -12,8 +12,16 @@ import {
   IconSvgComponent,
   InputDirective
 } from '@gsf/ui';
+import { DeleteLayerCommand } from '../../commands/delete-layer.command';
+import { ReorderLayerCommand } from '../../commands/reorder-layer.command';
+import { ToggleLayerVisibilityCommand } from '../../commands/toggle-layer-visibility.command';
+import { CanvasStateService } from '../../services/canvas/canvas-state.service';
+import { CommandManagerService } from '../../services/command/command-manager.service';
 import { LayerManagementService } from '../../services/layers/layer-management.service';
 import { Layer } from '../../types/layer.type';
+import { ICON_EYE_OFF } from './../../../../../../../../libs/ui/src/lib/icons/index';
+import { GeneralInfomationFormService } from '../../services/forms/general-information-form.service';
+import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-template-properties-panel',
@@ -38,9 +46,15 @@ import { Layer } from '../../types/layer.type';
               </div>
             </summary>
 
-            <div class="py-4 flex flex-col gap-4">
+            <form class="py-4 flex flex-col gap-4" [formGroup]="form">
               <gsf-form-field label="Template Name">
-                <input slot="input" type="text" gsfInput placeholder="Enter Template Name" />
+                <input
+                  slot="input"
+                  type="text"
+                  gsfInput
+                  placeholder="Enter Template Name"
+                  formControlName="name"
+                />
               </gsf-form-field>
 
               <gsf-form-field label="Description" class="">
@@ -50,9 +64,10 @@ import { Layer } from '../../types/layer.type';
                   placeholder="Enter Description"
                   rows="5"
                   class="resize-none"
+                  formControlName="description"
                 ></textarea>
               </gsf-form-field>
-            </div>
+            </form>
           </details>
         </div>
 
@@ -95,7 +110,7 @@ import { Layer } from '../../types/layer.type';
                     (click)="toggleVisibility(layer.id)"
                     [disabled]="layer.type === 'frame'"
                   >
-                    <gsf-icon-svg [icon]="ICON_EYE" />
+                    <gsf-icon-svg [icon]="layer.visible ? ICON_EYE : ICON_EYE_OFF" />
                   </button>
                   <button
                     gsfButton
@@ -117,6 +132,7 @@ import { Layer } from '../../types/layer.type';
   `,
 
   imports: [
+    ReactiveFormsModule,
     IconSvgComponent,
     ButtonDirective,
     FormFieldComponent,
@@ -147,17 +163,22 @@ import { Layer } from '../../types/layer.type';
 export class TemplatePropertiesPanelComponent implements OnInit {
   private layerManagementService = inject(LayerManagementService);
   private destroyRef = inject(DestroyRef);
+  private commandManager = inject(CommandManagerService);
+  private canvasStateService = inject(CanvasStateService);
+  private generalInfomationFormService = inject(GeneralInfomationFormService);
 
   ICON_ARROW_LEFT_DOUBLE = ICON_ARROW_LEFT_DOUBLE;
   ICON_BOLD_ARROW_DOWN = ICON_BOLD_ARROW_DOWN;
   ICON_Drag_OUTLINE = ICON_Drag_OUTLINE;
   ICON_EYE = ICON_EYE;
+  ICON_EYE_OFF = ICON_EYE_OFF;
   ICON_CLOSE = ICON_CLOSE;
 
   items = Array.from({ length: 1 }, (_, i) => i);
 
   layers: Layer[] = [];
   selectedLayerId: string | null = null;
+  form!: FormGroup;
 
   ngOnInit(): void {
     this.layerManagementService.layers$
@@ -171,6 +192,8 @@ export class TemplatePropertiesPanelComponent implements OnInit {
       .subscribe((layerId) => {
         this.selectedLayerId = layerId;
       });
+
+    this.form = this.generalInfomationFormService.createForm();
   }
 
   selectLayer(layerId: string): void {
@@ -183,16 +206,29 @@ export class TemplatePropertiesPanelComponent implements OnInit {
   }
 
   toggleVisibility(layerId: string): void {
-    this.layerManagementService.toggleVisibility(layerId);
+    const command = new ToggleLayerVisibilityCommand(this.layerManagementService, layerId);
+    this.commandManager.execute(command);
   }
 
   deleteLayer(layerId: string): void {
-    this.layerManagementService.deleteLayer(layerId);
+    const canvas = this.canvasStateService.getCanvas();
+    const command = new DeleteLayerCommand(this.layerManagementService, canvas, layerId);
+    this.commandManager.execute(command);
   }
 
   onDrop(event: CdkDragDrop<Layer[]>): void {
     if (event.previousIndex !== event.currentIndex) {
-      this.layerManagementService.reorderLayers(event.previousIndex, event.currentIndex);
+      if (this.isFrame(this.layers[event.previousIndex].id)) {
+        return;
+      }
+
+      const command = new ReorderLayerCommand(
+        this.layerManagementService,
+        event.previousIndex,
+        event.currentIndex
+      );
+
+      this.commandManager.execute(command);
     }
   }
 
@@ -200,4 +236,7 @@ export class TemplatePropertiesPanelComponent implements OnInit {
     return this.selectedLayerId === layerId;
   }
 
+  isFrame(layerId: string): boolean {
+    return this.layerManagementService.isFrameLayer(layerId);
+  }
 }

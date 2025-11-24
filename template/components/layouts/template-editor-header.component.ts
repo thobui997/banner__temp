@@ -1,5 +1,5 @@
-import { NgTemplateOutlet } from '@angular/common';
-import { Component, inject, ViewChild } from '@angular/core';
+import { CommonModule, NgTemplateOutlet } from '@angular/common';
+import { Component, inject, OnInit, ViewChild } from '@angular/core';
 import { WrapOverlayComponent } from '@gsf/admin/app/shared/components';
 import { OverlayTriggerDirective } from '@gsf/admin/app/shared/directives';
 import {
@@ -14,6 +14,8 @@ import {
 import { DEFAULT_IMAGE_URL, variables } from '../../consts/variables.const';
 import { Variable, VariableType } from '../../types/variable.type';
 import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
+import { CommandManagerService } from '../../services/command/command-manager.service';
+import { Observable } from 'rxjs';
 
 @Component({
   selector: 'app-template-editor-header',
@@ -37,10 +39,24 @@ import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service
         </button>
 
         <div class="flex items-center">
-          <button gsfButton appColor="tertiary" class="text-text-primary-2">
+          <button
+            gsfButton
+            appColor="tertiary"
+            class="text-text-primary-2"
+            [disabled]="(canUndo$ | async) === false"
+            (click)="onUndo()"
+            title="Undo (Ctrl+Z)"
+          >
             <gsf-icon-svg [icon]="ICON_UNDO" />
           </button>
-          <button gsfButton appColor="tertiary" class="text-text-primary-2">
+          <button
+            gsfButton
+            appColor="tertiary"
+            class="text-text-primary-2"
+            [disabled]="(canRedo$ | async) === false"
+            (click)="onRedo()"
+            title="Redo (Ctrl+Y)"
+          >
             <gsf-icon-svg [icon]="ICON_REDO" />
           </button>
         </div>
@@ -76,6 +92,7 @@ import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service
     </app-wrap-overlay>
   `,
   imports: [
+    CommonModule,
     NgTemplateOutlet,
     IconSvgComponent,
     ButtonDirective,
@@ -83,8 +100,9 @@ import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service
     WrapOverlayComponent
   ]
 })
-export class TemplateEditorHeaderComponent {
+export class TemplateEditorHeaderComponent implements OnInit {
   private canvasService = inject(CanvasFacadeService);
+  private commandManager = inject(CommandManagerService);
 
   @ViewChild('overlayTrigger') overlayTrigger!: OverlayTriggerDirective;
 
@@ -96,6 +114,14 @@ export class TemplateEditorHeaderComponent {
 
   variables = variables;
 
+  canUndo$!: Observable<boolean>;
+  canRedo$!: Observable<boolean>;
+
+  ngOnInit(): void {
+    // Subscribe to undo/redo availability
+    this.canUndo$ = this.commandManager.canUndo$;
+    this.canRedo$ = this.commandManager.canRedo$;
+  }
 
   private readonly actionMap: Partial<Record<VariableType, () => void>> = {
     text: () => this.canvasService.addText(),
@@ -106,5 +132,13 @@ export class TemplateEditorHeaderComponent {
   selectVariable(variable: Variable) {
     this.actionMap[variable.type]?.();
     this.overlayTrigger.closeOverlay();
+  }
+
+  onUndo(): void {
+    this.commandManager.undo();
+  }
+
+  onRedo(): void {
+    this.commandManager.redo();
   }
 }

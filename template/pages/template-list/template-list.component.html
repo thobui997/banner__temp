@@ -1,0 +1,56 @@
+<app-page-layout>
+  <ng-template #pageHeader>
+    <div class="flex justify-between">
+      <app-page-title heading="Template"></app-page-title>
+      <button gsfButton (click)="goToCreateTemplaePage()">
+        <gsf-icon-svg [icon]="ICON_ADD_OUTLINE" /> Add Template
+      </button>
+    </div>
+  </ng-template>
+
+  <ng-container page-content>
+    <app-page-list-wrapper
+      [showPagination]="true"
+      [filterConfiguration]="filterConfiguration()"
+      searchPlaceholder="Search"
+      headerClasses="flex items-center gap-3 p-4 pb-5"
+      searchFilterWapperClasses="!p-0"
+      classSearchBox="w-72"
+      #pageListWrapper
+    >
+      <ng-container table-content>
+        @if (sourceList$ | async; as vmList) {
+          <app-table
+            #tableInstance
+            [data]="vmList || []"
+            [columns]="tableColumns"
+            [searchKey]="pageListWrapper.searchTerm"
+            [countFilter]="pageListWrapper.countFilter"
+          >
+            <ng-template appCellDef="thumbnailFile" let-row>
+              @if (row?.thumbnailFile) {
+                <div class="w-[111px] aspect-video">
+                  <img
+                    [src]="row?.thumbnailFile?.fullPathUrl"
+                    class="w-full h-full object-contain"
+                    alt="thumnail"
+                    width="111"
+                    height="74"
+                  />
+                </div>
+              }
+            </ng-template>
+            <ng-template appCellDef="createdBy" let-row> </ng-template>
+
+            <ng-template appCellDef="action" let-row>
+              <div class="flex items-center">
+                <app-edit-button />
+                <app-delete-button />
+              </div>
+            </ng-template>
+          </app-table>
+        }
+      </ng-container>
+    </app-page-list-wrapper>
+  </ng-container>
+</app-page-layout>

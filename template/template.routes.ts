@@ -4,7 +4,7 @@ export const TEMPLATE_Routes: Route[] = [
   {
     path: '',
     loadComponent: () =>
-      import('./pages/template-list.component').then((m) => m.TemplateListComponent)
+      import('./pages/template-list/template-list.component').then((m) => m.TemplateListComponent)
   },
   {
     path: 'add',

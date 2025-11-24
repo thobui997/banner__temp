@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { FabricImage, Group, IText, Rect, Textbox } from 'fabric';
-import { CanvasStateService } from '../canvas/canvas-state.service';
+import { FabricImage, FabricObject, Group, IText, Rect, Textbox } from 'fabric';
+import { UpdateMultiObjectPropsCommand } from '../../commands/update-multi-object-props.command';
+import { UpdatePropertiesCommand } from '../../commands/update-object.command';
+import { DEFAULT_IMAGE_URL, VariableType } from '../../consts/variables.const';
 import {
   ButtonProperties,
   CanvasObjectProperties,
@@ -8,17 +10,20 @@ import {
   ImageProperties,
   TextProperties
 } from '../../types/canvas-object.type';
-import { DEFAULT_IMAGE_URL, VariableType } from '../../consts/variables.const';
+import { CanvasEventHandlerService } from '../canvas/canvas-event-handler.service';
+import { CanvasStateService } from '../canvas/canvas-state.service';
+import { CommandManagerService } from '../command/command-manager.service';
 import { ObjectPropertiesExtractorService } from './object-properties-extractor.service';
-import { ObjectConstraintService } from './object-constraint.service';
+import { UpdateImageSourceCommand } from '../../commands/image-source.command';
 
 @Injectable()
 export class ObjectUpdateService {
   private stateService = inject(CanvasStateService);
   private propertiesExtractor = inject(ObjectPropertiesExtractorService);
-  private constraintService = inject(ObjectConstraintService);
+  private commandManagerService = inject(CommandManagerService);
+  private canvasEventHandlerService = inject(CanvasEventHandlerService);
 
-  updateObjectProperties(properties: Partial<CanvasObjectProperties>, skipRender = false): void {
+  updateObjectProperties(properties: Partial<CanvasObjectProperties>): void {
     const canvas = this.stateService.getCanvas();
     const activeObject = canvas.getActiveObject();
 
@@ -32,7 +37,7 @@ export class ObjectUpdateService {
         break;
 
       case VariableType.IMAGE:
-        this.updateImagePropertiesInternal(
+        this.updateImageProperties(
           activeObject as FabricImage,
           properties as Partial<ImageProperties>
         );
@@ -49,85 +54,37 @@ export class ObjectUpdateService {
       default:
         break;
     }
-
-    // Apply frame constraints after update (skip for frame itself)
-    if (type !== VariableType.FRAME && this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(activeObject);
-    }
-
-    activeObject.setCoords();
-
-    if (!skipRender) {
-      canvas.renderAll();
-    }
   }
 
-  updateImageProperties(properties: Partial<ImageProperties>, skipRender = false): void {
-    const canvas = this.stateService.getCanvas();
-    const activeObject = canvas.getActiveObject();
 
-    if (
-      !activeObject ||
-      this.propertiesExtractor.getObjectType(activeObject) !== VariableType.IMAGE
-    ) {
-      return;
-    }
-
-    this.updateImagePropertiesInternal(activeObject as FabricImage, properties);
-
-    // Apply frame constraints after update
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(activeObject);
-    }
-
-    activeObject.setCoords();
-
-    if (!skipRender) {
-      canvas.renderAll();
-    }
-  }
-
-  updateSelectedObject(properties: any): void {
-    const canvas = this.stateService.getCanvas();
-    const activeObject = canvas.getActiveObject();
-
-    if (activeObject) {
-      const type = this.propertiesExtractor.getObjectType(activeObject);
-
-      activeObject.set(properties);
-
-      // Apply frame constraints after update (skip for frame itself)
-      if (type !== VariableType.FRAME && this.constraintService.hasFrame()) {
-        this.constraintService.applyFrameConstraints(activeObject);
-      }
-
-      activeObject.setCoords();
-      canvas.renderAll();
-    }
-  }
-
-  private updateImagePropertiesInternal(
+  private updateImageProperties(
     imageObj: FabricImage,
     properties: Partial<ImageProperties>
   ): void {
+    const canvas = this.stateService.getCanvas();
+    const newProperties: Record<string, any> = {};
+
+    const addProp = (key: string, value: any) => {
+      if (value !== undefined) newProperties[key] = value;
+    };
+
+    // Update position
     if (properties.position) {
-      imageObj.set({
-        left: properties.position.x,
-        top: properties.position.y,
-        angle: properties.position.angle
-      });
+      addProp('left', properties.position.x);
+      addProp('top', properties.position.y);
+      addProp('angle', properties.position.angle);
     }
 
+    // Update dimensions
     if (properties.width !== undefined && properties.height !== undefined) {
       const originalWidth = imageObj.width || 1;
       const originalHeight = imageObj.height || 1;
 
-      imageObj.set({
-        scaleX: Number(properties.width) / originalWidth,
-        scaleY: Number(properties.height) / originalHeight
-      });
+      addProp('scaleX', Number(properties.width) / originalWidth);
+      addProp('scaleY', Number(properties.height) / originalHeight);
     }
 
+    // Update corner radius
     if (properties.cornerRadius !== undefined) {
       const radius = properties.cornerRadius || 0;
 
@@ -136,157 +93,169 @@ export class ObjectUpdateService {
         const height = imageObj.height || 0;
 
         const clipPath = new Rect({
-          width: width,
-          height: height,
+          width,
+          height,
           rx: radius,
           ry: radius,
           originX: 'center',
           originY: 'center'
         });
 
-        imageObj.set({ clipPath });
+        addProp('clipPath', clipPath);
       } else {
-        imageObj.set({ clipPath: undefined });
+        addProp('clipPath', undefined);
       }
     }
 
+    // Update opacity
     if (properties.opacity !== undefined) {
-      imageObj.set({ opacity: properties.opacity });
+      addProp('opacity', properties.opacity);
     }
 
-    if (properties.attachments !== undefined && properties.attachments.length > 0) {
-      const file = properties.attachments[0];
-
-      // Load new image and fit to frame
-      imageObj.setSrc(file.fullPathUrl).then(() => {
-        // After image loads, fit it to frame if frame exists
-        this.fitImageToFrame(imageObj);
-        imageObj.canvas?.requestRenderAll();
-      });
-
-      imageObj.set('attachments', properties.attachments);
-    } else {
-      // Reset to default image
-      imageObj.set('attachments', []);
-
-      imageObj.setSrc(DEFAULT_IMAGE_URL).then(() => {
-        // After default image loads, fit it to frame if frame exists
-        this.fitImageToFrame(imageObj);
-        imageObj.canvas?.requestRenderAll();
-      });
-    }
-
+    // Update metadata
     if (properties.customData?.metadata) {
-      imageObj.set('customMetadata', properties.customData.metadata);
+      addProp('customMetadata', properties.customData.metadata);
     }
+
+    // Handle image src change separately (async operation)
+    if (properties.attachments !== undefined) {
+      const attachments = properties.attachments;
+      const newSrc = attachments?.length > 0 ? attachments[0].fullPathUrl : DEFAULT_IMAGE_URL;
+
+      // Execute regular properties first (if any)
+      if (Object.keys(newProperties).length > 0) {
+        const propsCommand = new UpdatePropertiesCommand(canvas, imageObj, newProperties, () => {
+          this.canvasEventHandlerService.emitObjectProperties(imageObj);
+        });
+        this.commandManagerService.execute(propsCommand);
+      }
+
+      // Then execute image source command
+      const sourceCommand = new UpdateImageSourceCommand(canvas, imageObj, newSrc, attachments, {
+        syncForm: () => {
+          this.canvasEventHandlerService.emitObjectProperties(imageObj);
+        },
+        fitImageToFrame: (img) => this.fitImageToFrame(img)
+      });
+      this.commandManagerService.execute(sourceCommand);
+
+      return;
+    }
+
+    // Execute command for all other properties
+    if (Object.keys(newProperties).length === 0) return;
+
+    const command = new UpdatePropertiesCommand(canvas, imageObj, newProperties, () => {
+      this.canvasEventHandlerService.emitObjectProperties(imageObj);
+    });
+    this.commandManagerService.execute(command);
   }
 
   private updateTextProperties(textObj: IText, properties: Partial<TextProperties>): void {
-    if (properties.position) {
-      textObj.set({
-        left: properties.position.x,
-        top: properties.position.y,
-        angle: properties.position.angle
-      });
-    }
+    const canvas = this.stateService.getCanvas();
 
-    if (properties.textColor) {
-      textObj.set({ fill: properties.textColor });
-    }
+    const newProperties: Record<string, any> = {};
 
-    if (properties.fontFamily) {
-      textObj.set({ fontFamily: properties.fontFamily });
-    }
+    const addProp = (key: string, value: any) => {
+      if (value !== undefined) {
+        newProperties[key] = value;
+      }
+    };
 
-    if (properties.fontWeight) {
-      textObj.set({ fontWeight: properties.fontWeight });
-    }
+    const propertyMap = {
+      left: properties.position?.x,
+      top: properties.position?.y,
+      angle: properties.position?.angle,
+      fill: properties.textColor,
+      fontFamily: properties.fontFamily,
+      fontWeight: properties.fontWeight,
+      fontSize: properties.fontSize,
+      textAlign: properties.textAlignment,
+      text: properties.text
+    };
 
-    if (properties.fontSize) {
-      textObj.set({ fontSize: properties.fontSize });
-    }
-
-    if (properties.textAlignment) {
-      textObj.set({ textAlign: properties.textAlignment });
-    }
-
-    if (properties.text !== undefined) {
-      textObj.set({ text: properties.text });
-    }
+    Object.entries(propertyMap).forEach(([key, value]) => addProp(key, value));
 
     if (properties.customData?.colorPreset) {
-      textObj.set('colorPreset', Array.from(properties.customData.colorPreset));
+      addProp('colorPreset', Array.from(properties.customData.colorPreset));
     }
 
     if (properties.customData?.metadata) {
-      textObj.set('customMetadata', properties.customData.metadata);
+      addProp('customMetadata', properties.customData.metadata);
     }
+
+    const command = new UpdatePropertiesCommand(canvas, textObj, newProperties, () => {
+      this.canvasEventHandlerService.emitObjectProperties(textObj);
+    });
+
+    this.commandManagerService.execute(command);
   }
 
   private updateButtonProperties(groupObj: Group, properties: Partial<ButtonProperties>) {
+    const canvas = this.stateService.getCanvas();
     const rect = groupObj.getObjects()[0] as Rect;
     const text = groupObj.getObjects()[1] as Textbox;
 
     if (!rect || !text) return;
 
+    const groupProperties: Record<string, any> = {};
+    const rectProperties: Record<string, any> = {};
+    const textProperties: Record<string, any> = {};
+
+    const addProp = (target: Record<string, any>, key: string, value: any) => {
+      if (value !== undefined) {
+        target[key] = value;
+      }
+    };
+
+    // Calculate current actual dimensions
     const currentScaleX = groupObj.scaleX || 1;
     const currentScaleY = groupObj.scaleY || 1;
-
     const actualWidth = (rect.width || 120) * currentScaleX;
     const actualHeight = (rect.height || 40) * currentScaleY;
 
+    // Update position
     if (properties.position) {
-      groupObj.set({
-        left: properties.position.x,
-        top: properties.position.y,
-        angle: properties.position.angle
-      });
+      addProp(groupProperties, 'left', properties.position.x);
+      addProp(groupProperties, 'top', properties.position.y);
+      addProp(groupProperties, 'angle', properties.position.angle);
     }
 
-    // Update width/height
+    // Update dimensions
     if (properties.width !== undefined || properties.height !== undefined) {
       const newWidth = Number(properties.width) ?? actualWidth;
       const newHeight = Number(properties.height) ?? actualHeight;
 
-      groupObj.set({
-        scaleX: 1,
-        scaleY: 1
-      });
+      // Reset group scale
+      addProp(groupProperties, 'scaleX', 1);
+      addProp(groupProperties, 'scaleY', 1);
 
-      rect.set({
-        width: newWidth,
-        height: newHeight,
-        left: 0,
-        top: 0
-      });
+      // Update rect dimensions
+      addProp(rectProperties, 'width', newWidth);
+      addProp(rectProperties, 'height', newHeight);
+      addProp(rectProperties, 'left', 0);
+      addProp(rectProperties, 'top', 0);
+
+      // Update text width with padding
+      const padding = (groupObj as any).customMetadata?.padding || 32;
+      addProp(textProperties, 'width', newWidth - padding);
+      addProp(textProperties, 'left', 0);
+      addProp(textProperties, 'top', 0);
+    } else if (currentScaleX !== 1 || currentScaleY !== 1) {
+      // Normalize scale even if width/height not explicitly changed
+      addProp(groupProperties, 'scaleX', 1);
+      addProp(groupProperties, 'scaleY', 1);
+      addProp(rectProperties, 'width', actualWidth);
+      addProp(rectProperties, 'height', actualHeight);
 
       const padding = (groupObj as any).customMetadata?.padding || 32;
-      text.set({
-        width: newWidth - padding,
-        left: 0,
-        top: 0
-      });
-    } else {
-      groupObj.set({
-        scaleX: 1,
-        scaleY: 1
-      });
-
-      rect.set({
-        width: actualWidth,
-        height: actualHeight
-      });
-
-      const padding = (groupObj as any).customMetadata?.padding || 32;
-      text.set({
-        width: actualWidth - padding
-      });
+      addProp(textProperties, 'width', actualWidth - padding);
     }
 
-    // Update shape
+    // Update shape (corner radius)
     if (properties.shape) {
-      const width = rect.width || 120;
-      const height = rect.height || 40;
+      const width = rectProperties['width'] || rect.width || 120;
+      const height = rectProperties['height'] || rect.height || 40;
 
       let radius = 0;
       if (properties.shape === 'pill') {
@@ -295,100 +264,147 @@ export class ObjectUpdateService {
         radius = 4;
       }
 
-      rect.set({ rx: radius, ry: radius });
+      addProp(rectProperties, 'rx', radius);
+      addProp(rectProperties, 'ry', radius);
     }
 
     // Update style
     if (properties.style) {
       if (properties.style === 'fill') {
-        rect.set({
-          fill: properties.buttonColor || rect.fill || '#764FDB',
-          stroke: undefined,
-          strokeWidth: 0
-        });
+        addProp(rectProperties, 'fill', properties.buttonColor || rect.fill || '#764FDB');
+        addProp(rectProperties, 'stroke', undefined);
+        addProp(rectProperties, 'strokeWidth', 0);
       } else if (properties.style === 'outline') {
-        rect.set({
-          fill: 'transparent',
-          stroke: properties.buttonColor || '#764FDB',
-          strokeWidth: 1
-        });
+        addProp(rectProperties, 'fill', 'transparent');
+        addProp(rectProperties, 'stroke', properties.buttonColor || '#764FDB');
+        addProp(rectProperties, 'strokeWidth', 1);
       } else {
-        rect.set({
-          fill: 'transparent',
-          stroke: undefined,
-          strokeWidth: 0
-        });
+        addProp(rectProperties, 'fill', 'transparent');
+        addProp(rectProperties, 'stroke', undefined);
+        addProp(rectProperties, 'strokeWidth', 0);
       }
     }
 
+    // Update button color (if style not provided)
     if (properties.buttonColor && !properties.style) {
-      rect.set({ fill: properties.buttonColor });
+      addProp(rectProperties, 'fill', properties.buttonColor);
     }
 
+    // Update text properties
     if (properties.textColor) {
-      text.set({ fill: properties.textColor });
+      addProp(textProperties, 'fill', properties.textColor);
     }
 
     if (properties.fontFamily) {
-      text.set({ fontFamily: properties.fontFamily });
+      addProp(textProperties, 'fontFamily', properties.fontFamily);
     }
 
     if (properties.fontWeight) {
-      text.set({ fontWeight: properties.fontWeight });
+      addProp(textProperties, 'fontWeight', properties.fontWeight);
     }
 
     if (properties.fontSize) {
-      text.set({ fontSize: properties.fontSize });
+      addProp(textProperties, 'fontSize', properties.fontSize);
     }
 
     if (properties.textAlignment) {
-      text.set({ textAlign: properties.textAlignment });
+      addProp(textProperties, 'textAlign', properties.textAlignment);
     }
 
     if (properties.text !== undefined) {
-      text.set({ text: properties.text });
+      addProp(textProperties, 'text', properties.text);
     }
 
-    if (properties.link !== undefined) {
-      const metadata = (groupObj as any).customMetadata || {};
-      metadata.link = properties.link;
-      groupObj.set('customMetadata', metadata);
+    // Update metadata
+    if (properties.link !== undefined || properties.customData?.metadata) {
+      const metadata = { ...(groupObj as any).customMetadata };
+      if (properties.link !== undefined) {
+        metadata.link = properties.link;
+      }
+      if (properties.customData?.metadata) {
+        Object.assign(metadata, properties.customData.metadata);
+      }
+      addProp(groupProperties, 'customMetadata', metadata);
     }
 
-    if (properties.customData?.metadata) {
-      groupObj.set('customMetadata', properties.customData.metadata);
-    }
-
+    // Update color presets
     if (properties.customData?.colorPreset) {
-      groupObj.set('colorPreset', Array.from(properties.customData.colorPreset));
+      addProp(groupProperties, 'colorPreset', Array.from(properties.customData.colorPreset));
     }
 
     if (properties.customData?.bgColorPreset) {
-      groupObj.set('bgColorPreset', Array.from(properties.customData.bgColorPreset));
+      addProp(groupProperties, 'bgColorPreset', Array.from(properties.customData.bgColorPreset));
     }
 
-    text.setCoords();
-    rect.setCoords();
-
-    groupObj.triggerLayout();
-    groupObj.setCoords();
-  }
-
-  private updateFrameProperties(activeObject: Rect, properties: Partial<FrameProperties>) {
-    if (properties.bgColor) {
-      activeObject.set({ fill: properties.bgColor });
-    }
-
-    if (properties.customData?.bgColorPreset) {
-      activeObject.set('bgColorPreset', Array.from(properties.customData.bgColorPreset));
-    }
-  }
-
-  private fitImageToFrame(imageObj: FabricImage): void {
-    if (!this.constraintService.hasFrame()) {
+    // Check if there are any updates
+    if (
+      Object.keys(groupProperties).length === 0 &&
+      Object.keys(rectProperties).length === 0 &&
+      Object.keys(textProperties).length === 0
+    ) {
       return;
     }
 
+    // Prepare updates array
+    const updates: Array<{ object: FabricObject; properties: Record<string, any> }> = [];
+
+    if (Object.keys(groupProperties).length > 0) {
+      updates.push({ object: groupObj, properties: groupProperties });
+    }
+
+    if (Object.keys(rectProperties).length > 0) {
+      updates.push({ object: rect, properties: rectProperties });
+    }
+
+    if (Object.keys(textProperties).length > 0) {
+      updates.push({ object: text, properties: textProperties });
+    }
+
+    // Execute command
+    const command = new UpdateMultiObjectPropsCommand(canvas, updates, {
+      syncForm: () => {
+        this.canvasEventHandlerService.emitObjectProperties(groupObj);
+      },
+      afterUpdate: () => {
+        groupObj.triggerLayout();
+        groupObj.setCoords();
+      }
+    });
+
+    this.commandManagerService.execute(command);
+  }
+
+  private updateFrameProperties(activeObject: Rect, properties: Partial<FrameProperties>) {
+    const canvas = this.stateService.getCanvas();
+
+    const newProperties: Record<string, any> = {};
+
+    const addProp = (key: string, value: any) => {
+      if (value !== undefined) {
+        newProperties[key] = value;
+      }
+    };
+
+    const propertyMap = {
+      fill: properties.bgColor
+    };
+
+    Object.entries(propertyMap).forEach(([key, value]) => addProp(key, value));
+
+    if (properties.customData?.bgColorPreset) {
+      addProp('bgColorPreset', Array.from(properties.customData.bgColorPreset));
+    }
+
+    if (Object.keys(newProperties).length === 0) return;
+
+    const command = new UpdatePropertiesCommand(canvas, activeObject, newProperties, () => {
+      this.canvasEventHandlerService.emitObjectProperties(activeObject);
+    });
+    this.commandManagerService.execute(command);
+  }
+
+  private fitImageToFrame(imageObj: FabricImage): void {
+    
     const frameBounds = this.getFrameBounds();
     if (!frameBounds) {
       return;

@@ -11,6 +11,7 @@ export class AddObjectCommand extends Command {
 
   execute(): void {
     this.canvas.add(this.object);
+    this.canvas.bringObjectToFront(this.object);
     this.canvas.setActiveObject(this.object);
     this.canvas.requestRenderAll();
   }

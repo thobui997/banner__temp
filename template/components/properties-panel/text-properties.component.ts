@@ -1,9 +1,11 @@
 import { Component, inject } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ICON_DOUBLE_ARROW_RIGHT, IconSvgComponent } from '@gsf/ui';
-import { BasePropertiesService } from '../../services/properties/base-properties.service';
-import { ObjectUpdateService } from '../../services/objects/object-update.service';
+import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
 import { TextPropertiesFormService } from '../../services/forms/text-properties-form.service';
+import { TextPropertyMapper } from '../../services/mappers/text-property-mapper.service';
+import { BasePropertiesService } from '../../services/properties/base-properties.service';
+import { TransformObjectService } from '../../services/transforms/transform-object.service';
 import { TextProperties, TextPropertiesFormValues } from '../../types/canvas-object.type';
 import { ColorPickerComponent } from '../object-controls/common/color-picker.component';
 import { PositionPropertiesComponent } from '../object-controls/common/position-properties.component';
@@ -11,8 +13,6 @@ import { PropertySectionComponent } from '../object-controls/common/property-sec
 import { TextAlignmentControlComponent } from '../object-controls/text/text-alignment-control.component';
 import { TextFontPropertiesComponent } from '../object-controls/text/text-font-properties.component';
 import { BasePropertiesComponent } from './base-properties.components';
-import { TextPropertyMapper } from '../../services/mappers/text-property-mapper.service';
-import { TransformObjectService } from '../../services/transforms/transform-object.service';
 
 @Component({
   selector: 'app-text-properties',
@@ -74,7 +74,7 @@ import { TransformObjectService } from '../../services/transforms/transform-obje
 export class TextPropertiesComponent extends BasePropertiesComponent<TextPropertiesFormService> {
   protected formService = inject(TextPropertiesFormService);
   protected baseService = inject(BasePropertiesService);
-  private objectUpdate = inject(ObjectUpdateService);
+  private canvasFacadeService = inject(CanvasFacadeService);
   private mapper = inject(TextPropertyMapper);
 
   readonly ICON_DOUBLE_ARROW_RIGHT = ICON_DOUBLE_ARROW_RIGHT;
@@ -93,17 +93,6 @@ export class TextPropertiesComponent extends BasePropertiesComponent<TextPropert
       if (!this.syncingFromCanvas) {
         const canvasProps = this.mapper.toCanvasProperties(formValues);
         this.updateObject(canvasProps);
-      }
-    });
-
-    // Immediate changes for color and alignment
-    this.formService.subscribeToImmediateChanges(['textColor', 'textAlignment'], (formValues) => {
-      if (!this.syncingFromCanvas) {
-        this.updateObject({
-          type: 'text',
-          textColor: formValues.textColor,
-          textAlignment: formValues.textAlignment
-        });
       }
     });
   }
@@ -128,6 +117,6 @@ export class TextPropertiesComponent extends BasePropertiesComponent<TextPropert
   }
 
   private updateObject(values: Partial<TextProperties>): void {
-    this.objectUpdate.updateObjectProperties(values);
+    this.canvasFacadeService.updateObjectProperties(values);
   }
 }

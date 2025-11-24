@@ -1,21 +1,21 @@
 import { inject, Injectable } from '@angular/core';
-import { Canvas, FabricObject } from 'fabric/*';
-import { VariableType } from '../../consts/variables.const';
-import { ObjectConstraintService } from '../objects/object-constraint.service';
-import { ObjectPropertiesExtractorService } from '../objects/object-properties-extractor.service';
+import { Canvas, FabricObject, ModifiedEvent, TPointerEvent } from 'fabric/*';
+import { MoveObjectCommand } from '../../commands/move-object.command';
+import { RotateObjectCommand } from '../../commands/rotate-object.command';
+import { ScaleObjectCommand } from '../../commands/scale-object.command';
+import { CommandManagerService } from '../command/command-manager.service';
 import { LayerManagementService } from '../layers/layer-management.service';
+import { ObjectPropertiesExtractorService } from '../objects/object-properties-extractor.service';
 import { CanvasStateService } from './canvas-state.service';
 
 @Injectable()
 export class CanvasEventHandlerService {
   private stateService = inject(CanvasStateService);
   private propertiesExtractor = inject(ObjectPropertiesExtractorService);
-  private constraintService = inject(ObjectConstraintService);
   private layerManagementService = inject(LayerManagementService);
+  private commandManager = inject(CommandManagerService);
 
-  // Track frame's previous bounds for resize detection
-  private previousFrameBounds: { left: number; top: number; width: number; height: number } | null =
-    null;
+  private lastStateBeforeTransform = new WeakMap<FabricObject, any>();
 
   setupEventListeners(canvas: Canvas): void {
     // Selection events
@@ -33,28 +33,50 @@ export class CanvasEventHandlerService {
 
     // Object modification events
     canvas.on('object:modified', (e) => {
-      if (e.target) {
-        this.handleObjectModified(e.target);
-      }
+      if (!e.target) return;
+      this.handleObjectModified(e);
     });
 
     // Real-time constraint events
     canvas.on('object:moving', (e) => {
-      if (e.target) {
-        this.handleObjectMoving(e.target);
+      const obj = e.target;
+      if (!obj) return;
+
+      if (!this.lastStateBeforeTransform.has(obj)) {
+        this.lastStateBeforeTransform.set(obj, {
+          left: obj.left,
+          top: obj.top
+        });
       }
+
+      this.emitObjectProperties(obj);
     });
 
     canvas.on('object:scaling', (e) => {
-      if (e.target) {
-        this.handleObjectScaling(e.target);
+      const obj = e.target;
+      if (!obj) return;
+
+      if (!this.lastStateBeforeTransform.has(obj)) {
+        this.lastStateBeforeTransform.set(obj, {
+          scaleX: obj.scaleX,
+          scaleY: obj.scaleY
+        });
       }
+
+      this.emitObjectProperties(obj);
     });
 
     canvas.on('object:rotating', (e) => {
-      if (e.target) {
-        this.handleObjectRotating(e.target);
+      const obj = e.target;
+      if (!obj) return;
+
+      if (!this.lastStateBeforeTransform.has(obj)) {
+        this.lastStateBeforeTransform.set(obj, {
+          angle: obj.angle
+        });
       }
+
+      this.emitObjectProperties(obj);
     });
 
     // Layer sync events
@@ -70,9 +92,6 @@ export class CanvasEventHandlerService {
         this.layerManagementService.syncLayers();
       }, 50);
     });
-
-    // Initialize previous frame bounds
-    this.updatePreviousFrameBounds();
 
     // Initialize layers
     this.layerManagementService.syncLayers();
@@ -91,144 +110,47 @@ export class CanvasEventHandlerService {
     }
   }
 
-  private handleObjectModified(obj: FabricObject): void {
-    const type = this.propertiesExtractor.getObjectType(obj);
+  private handleObjectModified(e: ModifiedEvent<TPointerEvent>): void {
+    const obj = e.target;
+    if (!e) return;
 
-    // Special handling for frame resize
-    if (type === VariableType.FRAME) {
-      this.handleFrameResized(obj);
-      return;
-    }
+    const canvas = this.stateService.getCanvas();
+    const prev = this.lastStateBeforeTransform.get(obj);
+    this.lastStateBeforeTransform.delete(obj);
 
-    // Apply final constraints after modification
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(obj);
-    }
+    if (!prev) return;
 
-    this.emitObjectProperties(obj);
-
-    // Re-sync layers (in case object name changed)
-    this.layerManagementService.syncLayers();
-  }
-
-  private handleObjectMoving(obj: FabricObject): void {
-    // Skip frame object
-    const type = this.propertiesExtractor.getObjectType(obj);
-    if (type === VariableType.FRAME) {
-      return;
-    }
-
-    // Apply constraints during moving
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(obj);
-    }
-
-    this.emitObjectProperties(obj);
-  }
-
-  private handleObjectScaling(obj: FabricObject): void {
-    const type = this.propertiesExtractor.getObjectType(obj);
-
-    // If scaling frame, handle frame resize in real-time
-    if (type === VariableType.FRAME) {
-      this.handleFrameScaling(obj);
-      return;
-    }
-
-    // Apply scale constraints during scaling
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyScaleConstraints(obj);
-    }
-
-    this.emitObjectProperties(obj);
-  }
-
-  private handleObjectRotating(obj: FabricObject): void {
-    // Skip frame object
-    const type = this.propertiesExtractor.getObjectType(obj);
-    if (type === VariableType.FRAME) {
-      return;
-    }
-
-    // During rotation, we need to ensure object stays within bounds
-    // This is more complex because rotation changes the bounding box
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(obj);
-    }
-
-    this.emitObjectProperties(obj);
-  }
-
-  /**
-   * Handle frame resize - adjust all objects to fit within new frame bounds
-   * This is called after frame scaling is complete
-   */
-  private handleFrameResized(frameObj: FabricObject): void {
-    const newFrameBounds = {
-      left: frameObj.left || 0,
-      top: frameObj.top || 0,
-      width: (frameObj.width || 0) * (frameObj.scaleX || 1),
-      height: (frameObj.height || 0) * (frameObj.scaleY || 1)
-    };
-
-    // Update frame object in state
-    this.stateService.updateFrameObject(frameObj);
-
-    // Handle objects that may now be outside frame
-    // Using 'scale-and-reposition' strategy by default
-    this.constraintService.handleFrameResizeWithStrategy(newFrameBounds, 'scale-and-reposition');
-
-    // Update previous bounds for next resize
-    this.previousFrameBounds = newFrameBounds;
-
-    // Emit frame properties
-    this.emitObjectProperties(frameObj);
-
-    // Re-sync layers
-    this.layerManagementService.syncLayers();
-  }
-
-  /**
-   * Handle frame scaling in real-time (during the scaling operation)
-   * This provides visual feedback while user is resizing frame
-   */
-  private handleFrameScaling(frameObj: FabricObject): void {
-    const currentFrameBounds = {
-      left: frameObj.left || 0,
-      top: frameObj.top || 0,
-      width: (frameObj.width || 0) * (frameObj.scaleX || 1),
-      height: (frameObj.height || 0) * (frameObj.scaleY || 1)
-    };
-
-    // Optional: Apply constraints in real-time during scaling
-    // This can be performance-intensive, so you may want to disable it
-    // and only apply constraints in handleFrameResized (after scaling is done)
-
-    // Uncomment the following lines for real-time constraint during frame scaling:
-    // this.constraintService.handleFrameResizeWithStrategy(
-    //   currentFrameBounds,
-    //   'scale-and-reposition'
-    // );
-
-    this.emitObjectProperties(frameObj);
-  }
-
-  /**
-   * Update previous frame bounds tracker
-   */
-  private updatePreviousFrameBounds(): void {
-    const frameObj = this.stateService.getFrameObject();
-    if (frameObj) {
-      this.previousFrameBounds = {
-        left: frameObj.left || 0,
-        top: frameObj.top || 0,
-        width: (frameObj.width || 0) * (frameObj.scaleX || 1),
-        height: (frameObj.height || 0) * (frameObj.scaleY || 1)
-      };
+    if ('left' in prev && 'top' in prev) {
+      const command = new MoveObjectCommand(
+        canvas,
+        obj,
+        prev.left,
+        prev.top,
+        obj.left ?? 0,
+        obj.top ?? 0,
+        () => this.emitObjectProperties(obj)
+      );
+      this.commandManager.execute(command);
+    } else if ('scaleX' in prev && 'scaleY' in prev) {
+      const command = new ScaleObjectCommand(
+        canvas,
+        obj,
+        prev.scaleX,
+        prev.scaleY,
+        obj.scaleX ?? 1,
+        obj.scaleY ?? 1,
+        () => this.emitObjectProperties(obj)
+      );
+      this.commandManager.execute(command);
+    } else if ('angle' in prev) {
+      const command = new RotateObjectCommand(canvas, obj, prev.angle, obj.angle ?? 0, () =>
+        this.emitObjectProperties(obj)
+      );
+      this.commandManager.execute(command);
     }
   }
 
-  private emitObjectProperties(obj: FabricObject): void {
+  emitObjectProperties(obj: FabricObject): void {
     const properties = this.propertiesExtractor.extractProperties(obj);
     this.stateService.updateSelectedObjectProperties(properties);
   }

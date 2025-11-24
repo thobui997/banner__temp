@@ -1,12 +1,9 @@
-import { inject, Injectable } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { FabricObject } from 'fabric';
 import { AlignmentType, TransformType } from '../../types/canvas-object.type';
-import { ObjectConstraintService } from '../objects/object-constraint.service';
 
 @Injectable()
 export class TransformObjectService {
-  private constraintService = inject(ObjectConstraintService);
-
   // Align object on canvas (used when no frame exists)
   alignObject(
     obj: FabricObject,
@@ -89,28 +86,32 @@ export class TransformObjectService {
   }
 
   // Transform object (rotate, flip) with constraint checking
-  transformObject(obj: FabricObject, type: TransformType): void {
+  transformObject(
+    obj: FabricObject,
+    type: TransformType
+  ): { angle?: number; flipX?: boolean; flipY?: boolean } {
+    const currentAngle = obj.angle ?? 0;
+    const currentFlipX = obj.flipX ?? false;
+    const currentFlipY = obj.flipY ?? false;
+
     switch (type) {
-      case 'rotate': {
-        const currentAngle = obj.angle;
-        obj.set({ angle: (currentAngle + 90) % 360 });
-        break;
-      }
+      case 'rotate':
+        return {
+          angle: (currentAngle + 90) % 360
+        };
 
       case 'flip-h':
-        obj.set({ flipX: !obj.flipX });
-        break;
+        return {
+          flipX: !currentFlipX
+        };
 
       case 'flip-v':
-        obj.set({ flipY: !obj.flipY });
-        break;
-    }
+        return {
+          flipY: !currentFlipY
+        };
 
-    obj.setCoords();
-
-    // Apply frame constraints after transformation
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(obj);
+      default:
+        return {};
     }
   }
 
@@ -132,10 +133,5 @@ export class TransformObjectService {
     });
 
     obj.setCoords();
-
-    // Apply frame constraints after setting position
-    if (this.constraintService.hasFrame()) {
-      this.constraintService.applyFrameConstraints(obj);
-    }
   }
 }
