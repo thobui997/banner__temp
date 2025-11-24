@@ -5,17 +5,17 @@
         <button gsfButton appColor="tertiary" (click)="goToList()">
           <gsf-icon-svg [icon]="ICON_LEFT_OUTLINE" />
         </button>
-        <app-page-title heading="Create Template" className="mb-0" />
+        <app-page-title heading="Edit Template" className="mb-0" />
       </div>
 
       <div class="flex items-center gap-[10px]">
-        <button gsfButton appColor="secondary" (click)="goToList()">Cancel</button>
-        <button gsfButton (click)="createTemplate()">Create</button>
+        <button gsfButton appColor="secondary" (click)="goToList()" class="w-[80px]">Cancel</button>
+        <button gsfButton (click)="editTemplate()" class="w-[80px]">Edit</button>
       </div>
     </div>
   </ng-template>
 
   <ng-container page-content>
-    <app-template-editor-container class="flex-1 h-full" />
+    <app-template-editor-container class="flex-1 h-full" [skipFrameCreation]="true" />
   </ng-container>
 </app-page-layout>

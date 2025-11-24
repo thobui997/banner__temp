@@ -22,6 +22,8 @@ import { Layer } from '../../types/layer.type';
 import { ICON_EYE_OFF } from './../../../../../../../../libs/ui/src/lib/icons/index';
 import { GeneralInfomationFormService } from '../../services/forms/general-information-form.service';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { FormFieldErrorComponent } from '@gsf/admin/app/shared/components/form-field-error/form-field-error.component';
+import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 
 @Component({
   selector: 'app-template-properties-panel',
@@ -31,12 +33,18 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
       <div class="flex flex-col h-full">
         <!-- header -->
         <div class="flex items-center justify-end px-6 py-3">
-          <button gsfButton appColor="tertiary" class="text-text-primary-2">
+          <button
+            gsfButton
+            appColor="tertiary"
+            class="text-text-primary-2"
+            (click)="closePanel()"
+            title="Close left panel"
+          >
             <gsf-icon-svg [icon]="ICON_ARROW_LEFT_DOUBLE" />
           </button>
         </div>
 
-        <!-- general inforrmation section -->
+        <!-- general information section -->
         <div class="px-6 pt-2">
           <details open>
             <summary>
@@ -47,14 +55,16 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
             </summary>
 
             <form class="py-4 flex flex-col gap-4" [formGroup]="form">
-              <gsf-form-field label="Template Name">
+              <gsf-form-field label="Template Name" [required]="true">
                 <input
                   slot="input"
                   type="text"
                   gsfInput
                   placeholder="Enter Template Name"
                   formControlName="name"
+                  maxlength="100"
                 />
+                <app-form-field-error slot="error" [control]="form.get('name')" />
               </gsf-form-field>
 
               <gsf-form-field label="Description" class="">
@@ -65,6 +75,7 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
                   rows="5"
                   class="resize-none"
                   formControlName="description"
+                  maxlength="250"
                 ></textarea>
               </gsf-form-field>
             </form>
@@ -138,7 +149,8 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
     FormFieldComponent,
     InputDirective,
     CdkDropList,
-    CdkDrag
+    CdkDrag,
+    FormFieldErrorComponent
   ],
   styles: [
     `
@@ -166,6 +178,7 @@ export class TemplatePropertiesPanelComponent implements OnInit {
   private commandManager = inject(CommandManagerService);
   private canvasStateService = inject(CanvasStateService);
   private generalInfomationFormService = inject(GeneralInfomationFormService);
+  private panelToggleService = inject(PanelToggleService);
 
   ICON_ARROW_LEFT_DOUBLE = ICON_ARROW_LEFT_DOUBLE;
   ICON_BOLD_ARROW_DOWN = ICON_BOLD_ARROW_DOWN;
@@ -173,8 +186,6 @@ export class TemplatePropertiesPanelComponent implements OnInit {
   ICON_EYE = ICON_EYE;
   ICON_EYE_OFF = ICON_EYE_OFF;
   ICON_CLOSE = ICON_CLOSE;
-
-  items = Array.from({ length: 1 }, (_, i) => i);
 
   layers: Layer[] = [];
   selectedLayerId: string | null = null;
@@ -238,5 +249,9 @@ export class TemplatePropertiesPanelComponent implements OnInit {
 
   isFrame(layerId: string): boolean {
     return this.layerManagementService.isFrameLayer(layerId);
+  }
+
+  closePanel(): void {
+    this.panelToggleService.closeLeftPanel();
   }
 }

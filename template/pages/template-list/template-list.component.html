@@ -44,7 +44,7 @@
 
             <ng-template appCellDef="action" let-row>
               <div class="flex items-center">
-                <app-edit-button />
+                <app-edit-button (edit)="goToEditTemplate(row.id)" />
                 <app-delete-button />
               </div>
             </ng-template>

@@ -1,7 +1,15 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { TemplateRequest, TemplateResponse } from '../../types/template.type';
-import { AdvancedSearchParams, BaseResponse } from '@gsf/admin/app/shared/types';
+import {
+  TemplateRequest,
+  TemplateResponse,
+  TemplateUpdateRequest
+} from '../../types/template.type';
+import {
+  AdvancedSearchParams,
+  BaseResponse,
+  BaseResponseWithoutPaging
+} from '@gsf/admin/app/shared/types';
 
 @Injectable()
 export class TemplateApiService {
@@ -13,6 +21,19 @@ export class TemplateApiService {
   }
 
   getTemplates(payload: AdvancedSearchParams) {
-    return this.httpClient.post<BaseResponse<TemplateResponse[]>>(`${this.baseUrl}/search`, payload);
+    return this.httpClient.post<BaseResponse<TemplateResponse[]>>(
+      `${this.baseUrl}/search`,
+      payload
+    );
+  }
+
+  getTemplateById(id: number) {
+    return this.httpClient.get<BaseResponseWithoutPaging<TemplateResponse>>(
+      `${this.baseUrl}/${id}`
+    );
+  }
+
+  updateTemplate(payload: TemplateUpdateRequest) {
+    return this.httpClient.post(`${this.baseUrl}/update`, payload);
   }
 }

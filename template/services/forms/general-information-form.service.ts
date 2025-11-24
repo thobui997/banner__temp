@@ -26,4 +26,11 @@ export class GeneralInfomationFormService {
   markAllAsTouched() {
     this.form.markAllAsTouched();
   }
+
+  patchForm(data: { name: string; description: string }) {
+    this.form.patchValue({
+      name: data.name,
+      description: data.description
+    });
+  }
 }

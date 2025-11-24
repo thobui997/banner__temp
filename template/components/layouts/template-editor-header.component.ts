@@ -15,6 +15,7 @@ import { DEFAULT_IMAGE_URL, variables } from '../../consts/variables.const';
 import { Variable, VariableType } from '../../types/variable.type';
 import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
 import { CommandManagerService } from '../../services/command/command-manager.service';
+import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 import { Observable } from 'rxjs';
 
 @Component({
@@ -22,11 +23,20 @@ import { Observable } from 'rxjs';
   standalone: true,
   template: `
     <div class="flex gap-4 items-center bg-white py-3 px-4 border-b border-stroke-primary-2">
-      <button gsfButton appColor="tertiary" class="text-text-primary-2">
-        <gsf-icon-svg [icon]="ICON_ARROW_LEFT_DOUBLE" />
-      </button>
+      <!-- Open Left Panel Button - Only show when panel is closed -->
+      @if ((panelState$ | async)?.leftPanelOpen === false) {
+        <button
+          gsfButton
+          appColor="tertiary"
+          class="text-text-primary-2"
+          (click)="openLeftPanel()"
+          title="Open left panel"
+        >
+          <gsf-icon-svg [icon]="ICON_ARROW_RIGHT_DOUBLE" />
+        </button>
 
-      <ng-container [ngTemplateOutlet]="sepratorTmpl" />
+        <ng-container [ngTemplateOutlet]="sepratorTmpl" />
+      }
 
       <div class="flex-1 flex items-center justify-between">
         <button
@@ -62,11 +72,20 @@ import { Observable } from 'rxjs';
         </div>
       </div>
 
-      <ng-container [ngTemplateOutlet]="sepratorTmpl" />
+      <!-- Open Right Panel Button - Only show when panel is closed -->
+      @if ((panelState$ | async)?.rightPanelOpen === false) {
+        <ng-container [ngTemplateOutlet]="sepratorTmpl" />
 
-      <button gsfButton appColor="tertiary" class="text-text-primary-2">
-        <gsf-icon-svg [icon]="ICON_ARROW_RIGHT_DOUBLE" />
-      </button>
+        <button
+          gsfButton
+          appColor="tertiary"
+          class="text-text-primary-2"
+          (click)="openRightPanel()"
+          title="Open right panel"
+        >
+          <gsf-icon-svg [icon]="ICON_ARROW_LEFT_DOUBLE" />
+        </button>
+      }
     </div>
 
     <ng-template #sepratorTmpl>
@@ -103,6 +122,7 @@ import { Observable } from 'rxjs';
 export class TemplateEditorHeaderComponent implements OnInit {
   private canvasService = inject(CanvasFacadeService);
   private commandManager = inject(CommandManagerService);
+  private panelToggleService = inject(PanelToggleService);
 
   @ViewChild('overlayTrigger') overlayTrigger!: OverlayTriggerDirective;
 
@@ -116,9 +136,9 @@ export class TemplateEditorHeaderComponent implements OnInit {
 
   canUndo$!: Observable<boolean>;
   canRedo$!: Observable<boolean>;
+  panelState$ = this.panelToggleService.state$;
 
   ngOnInit(): void {
-    // Subscribe to undo/redo availability
     this.canUndo$ = this.commandManager.canUndo$;
     this.canRedo$ = this.commandManager.canRedo$;
   }
@@ -140,5 +160,13 @@ export class TemplateEditorHeaderComponent implements OnInit {
 
   onRedo(): void {
     this.commandManager.redo();
+  }
+
+  openLeftPanel(): void {
+    this.panelToggleService.openLeftPanel();
+  }
+
+  openRightPanel(): void {
+    this.panelToggleService.openRightPanel();
   }
 }

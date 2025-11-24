@@ -14,6 +14,7 @@ import { PositionPropertiesComponent } from '../object-controls/common/position-
 import { PropertySectionComponent } from '../object-controls/common/property-section.component';
 import { SizeComponent } from '../object-controls/common/size.component';
 import { BasePropertiesComponent } from './base-properties.components';
+import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 
 @Component({
   selector: 'app-image-properties',
@@ -21,7 +22,7 @@ import { BasePropertiesComponent } from './base-properties.components';
   template: `
     <form class="flex flex-col h-full" [formGroup]="form">
       <!-- block name -->
-      <div class="flex items-center gap-4 py-3 px-6">
+      <div class="flex items-center gap-4 py-3 px-6" (click)="closePanel()">
         <button gsfButton appColor="tertiary" class="text-text-primary-2">
           <gsf-icon-svg [icon]="ICON_DOUBLE_ARROW_RIGHT" />
         </button>
@@ -76,6 +77,7 @@ export class ImagePropertiesComponent extends BasePropertiesComponent<ImagePrope
   protected baseService = inject(BasePropertiesService);
   private canvasFacade = inject(CanvasFacadeService);
   private mapper = inject(ImagePropertyMapper);
+  private panelToggleService = inject(PanelToggleService);
 
   readonly ICON_DOUBLE_ARROW_RIGHT = ICON_DOUBLE_ARROW_RIGHT;
 
@@ -98,6 +100,10 @@ export class ImagePropertiesComponent extends BasePropertiesComponent<ImagePrope
       VariableType.IMAGE,
       (canvasProps) => this.mapper.toFormValues(canvasProps)
     );
+  }
+
+  closePanel(): void {
+    this.panelToggleService.closeRightPanel();
   }
 
   private updateCanvas(formValues: Partial<ImageProperties>): void {

@@ -12,6 +12,11 @@ export const TEMPLATE_Routes: Route[] = [
       import('./pages/template-add/template-add.component').then((m) => m.TemplateAddComponent)
   },
   {
+    path: 'edit/:id',
+    loadComponent: () =>
+      import('./pages/template-edit/template-edit.component').then((m) => m.TemplateEditComponent)
+  },
+  {
     path: '',
     pathMatch: 'full',
     redirectTo: ''

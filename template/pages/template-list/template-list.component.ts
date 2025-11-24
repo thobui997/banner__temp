@@ -106,4 +106,8 @@ export class TemplateListComponent extends BaseComponent {
   goToCreateTemplaePage() {
     this.router.navigateByUrl('/template/add');
   }
+
+  goToEditTemplate(templateId: number): void {
+    this.router.navigate(['/template/edit', templateId]);
+  }
 }

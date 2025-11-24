@@ -13,6 +13,7 @@ import { PropertySectionComponent } from '../object-controls/common/property-sec
 import { TextAlignmentControlComponent } from '../object-controls/text/text-alignment-control.component';
 import { TextFontPropertiesComponent } from '../object-controls/text/text-font-properties.component';
 import { BasePropertiesComponent } from './base-properties.components';
+import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 
 @Component({
   selector: 'app-text-properties',
@@ -21,7 +22,7 @@ import { BasePropertiesComponent } from './base-properties.components';
     <form class="flex flex-col h-full" [formGroup]="form">
       <!-- block name -->
       <div class="flex items-center gap-4 py-3 px-6">
-        <button gsfButton appColor="tertiary" class="text-text-primary-2">
+        <button gsfButton appColor="tertiary" class="text-text-primary-2" (click)="closePanel()">
           <gsf-icon-svg [icon]="ICON_DOUBLE_ARROW_RIGHT" />
         </button>
 
@@ -76,6 +77,7 @@ export class TextPropertiesComponent extends BasePropertiesComponent<TextPropert
   protected baseService = inject(BasePropertiesService);
   private canvasFacadeService = inject(CanvasFacadeService);
   private mapper = inject(TextPropertyMapper);
+  private panelToggleService = inject(PanelToggleService);
 
   readonly ICON_DOUBLE_ARROW_RIGHT = ICON_DOUBLE_ARROW_RIGHT;
 
@@ -114,6 +116,10 @@ export class TextPropertiesComponent extends BasePropertiesComponent<TextPropert
   onPresetsChange(presets: Set<string>): void {
     this.colorPresets = presets;
     this.updateObject({ customData: { colorPreset: presets } });
+  }
+
+  closePanel(): void {
+    this.panelToggleService.closeRightPanel();
   }
 
   private updateObject(values: Partial<TextProperties>): void {

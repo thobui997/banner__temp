@@ -17,6 +17,7 @@ import { TextAlignmentControlComponent } from '../object-controls/text/text-alig
 import { TextFontPropertiesComponent } from '../object-controls/text/text-font-properties.component';
 import { ButtonPropertyMapper } from '../../services/mappers/button-property-mapper.service';
 import { TransformObjectService } from '../../services/transforms/transform-object.service';
+import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 
 @Component({
   selector: 'app-button-properties',
@@ -25,7 +26,7 @@ import { TransformObjectService } from '../../services/transforms/transform-obje
     <form class="flex flex-col h-full" [formGroup]="form">
       <!-- block name -->
       <div class="flex items-center gap-4 py-3 px-6">
-        <button gsfButton appColor="tertiary" class="text-text-primary-2">
+        <button gsfButton appColor="tertiary" class="text-text-primary-2" (click)="closePanel()">
           <gsf-icon-svg [icon]="ICON_DOUBLE_ARROW_RIGHT" />
         </button>
 
@@ -100,6 +101,7 @@ export class ButtonPropertiesComponent extends BasePropertiesComponent<ButtonPro
   protected baseService = inject(BasePropertiesService);
   private canvasFacade = inject(CanvasFacadeService);
   private mapper = inject(ButtonPropertyMapper);
+  private panelToggleService = inject(PanelToggleService);
 
   readonly ICON_DOUBLE_ARROW_RIGHT = ICON_DOUBLE_ARROW_RIGHT;
 
@@ -144,6 +146,10 @@ export class ButtonPropertiesComponent extends BasePropertiesComponent<ButtonPro
         }
       }
     );
+  }
+
+  closePanel(): void {
+    this.panelToggleService.closeRightPanel();
   }
 
   private updateObject(properties: Partial<ButtonProperties>): void {

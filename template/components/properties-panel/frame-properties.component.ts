@@ -11,6 +11,7 @@ import { ColorPickerComponent } from '../object-controls/common/color-picker.com
 import { PropertySectionComponent } from '../object-controls/common/property-section.component';
 import { FramePropertyMapper } from '../../services/mappers/frame-property-mapper.service';
 import { TransformObjectService } from '../../services/transforms/transform-object.service';
+import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 
 @Component({
   selector: 'app-frame-properties',
@@ -19,7 +20,7 @@ import { TransformObjectService } from '../../services/transforms/transform-obje
     <form class="flex flex-col h-full" [formGroup]="form">
       <!-- block name -->
       <div class="flex items-center gap-4 py-3 px-6">
-        <button gsfButton appColor="tertiary" class="text-text-primary-2">
+        <button gsfButton appColor="tertiary" class="text-text-primary-2" (click)="closePanel()">
           <gsf-icon-svg [icon]="ICON_DOUBLE_ARROW_RIGHT" />
         </button>
 
@@ -50,6 +51,7 @@ export class FramePropertiesComponent extends BasePropertiesComponent<FramePrope
   protected baseService = inject(BasePropertiesService);
   private canvasFacade = inject(CanvasFacadeService);
   private mapper = inject(FramePropertyMapper);
+  private panelToggleService = inject(PanelToggleService);
 
   readonly ICON_DOUBLE_ARROW_RIGHT = ICON_DOUBLE_ARROW_RIGHT;
 
@@ -84,6 +86,10 @@ export class FramePropertiesComponent extends BasePropertiesComponent<FramePrope
         }
       }
     );
+  }
+
+  closePanel(): void {
+    this.panelToggleService.closeRightPanel();
   }
 
   private updateObject(properties: Partial<FrameProperties>): void {

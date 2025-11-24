@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Canvas, FabricObject } from 'fabric';
+import { Canvas, FabricObject, util } from 'fabric';
 import { Observable } from 'rxjs';
 import {
   ButtonProperties,
@@ -14,6 +14,9 @@ import { ObjectUpdateService } from '../objects/object-update.service';
 import { CanvasEventHandlerService } from './canvas-event-handler.service';
 import { CanvasInitializationService } from './canvas-initialization.service';
 import { CanvasStateService } from './canvas-state.service';
+import { FrameManagementService } from '../frame/frame-management.service';
+import { VariableType } from '../../consts/variables.const';
+import { ObjectDeserializerService } from '../objects/object-deserializer.service';
 
 @Injectable()
 export class CanvasFacadeService {
@@ -23,6 +26,8 @@ export class CanvasFacadeService {
   private updateService = inject(ObjectUpdateService);
   private eventService = inject(CanvasEventHandlerService);
   private layerManagementService = inject(LayerManagementService);
+  private frameManagement = inject(FrameManagementService);
+  private deserializer = inject(ObjectDeserializerService);
 
   readonly layers$: Observable<Layer[]>;
   readonly selectedObject$: Observable<FabricObject | null>;
@@ -39,13 +44,18 @@ export class CanvasFacadeService {
     this.initService.initCanvas(element, width, height);
   }
 
-  disposeCanvas(): void {
-    this.initService.disposeCanvas();
+  initializeFrame(width: number, height: number): void {
+    const canvas = this.stateService.getCanvas();
+    const frame = this.frameManagement.initializeFrame(width, height);
+
+    canvas.add(frame);
+    canvas.sendObjectToBack(frame);
+    canvas.setActiveObject(frame);
+    canvas.requestRenderAll();
   }
 
-  // Object creation
-  addFrame(width: number, height: number): void {
-    this.creationService.addFrame(width, height);
+  disposeCanvas(): void {
+    this.initService.disposeCanvas();
   }
 
   addText(text?: string, colorPreset?: Set<string>): void {
@@ -122,7 +132,15 @@ export class CanvasFacadeService {
 
   exportTemplateToJson() {
     const canvas = this.stateService.getCanvas();
-    return canvas.toDatalessJSON(['colorPreset', 'bgColorPreset', 'attachments', 'customMetadata']);
+    const objects = canvas.toObject([
+      'colorPreset',
+      'bgColorPreset',
+      'attachments',
+      'customMetadata',
+      'clipPath'
+    ]);
+
+    return JSON.stringify(objects);
   }
 
   generateThumbnailBlob(size = 300): Promise<Blob> {
@@ -164,5 +182,34 @@ export class CanvasFacadeService {
     const blob = await this.generateThumbnailBlob(size);
     const name = fileName || `thumbnail-${Date.now()}.jpeg`;
     return new File([blob], name, { type: 'image/jpeg' });
+  }
+
+  async loadTemplateFromJson(jsonData: string) {
+    const canvas = this.stateService.getCanvas();
+
+    // Clear canvas first (optional)
+    const objects = canvas.getObjects();
+    objects.forEach((obj) => canvas.remove(obj));
+
+    // Deserialize and add objects
+    const data = jsonData ? JSON.parse(jsonData) : {};
+    await this.deserializer.deserializeAndAddObjects(data);
+
+    // Sync layers
+    this.syncLayers();
+
+    canvas.requestRenderAll();
+  }
+
+  resizeCanvas(width: number, height: number): void {
+    const canvas = this.stateService.getCanvas();
+    if (!canvas) return;
+
+    canvas.setDimensions({
+      width: width,
+      height: height
+    });
+
+    canvas.renderAll();
   }
 }

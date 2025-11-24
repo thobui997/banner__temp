@@ -7,6 +7,8 @@ import { CommandManagerService } from '../command/command-manager.service';
 import { LayerManagementService } from '../layers/layer-management.service';
 import { ObjectPropertiesExtractorService } from '../objects/object-properties-extractor.service';
 import { CanvasStateService } from './canvas-state.service';
+import { FrameManagementService } from '../frame/frame-management.service';
+import { UpdateFrameCommand } from '../../commands/update-frame.command';
 
 @Injectable()
 export class CanvasEventHandlerService {
@@ -14,6 +16,7 @@ export class CanvasEventHandlerService {
   private propertiesExtractor = inject(ObjectPropertiesExtractorService);
   private layerManagementService = inject(LayerManagementService);
   private commandManager = inject(CommandManagerService);
+  private frameManagement = inject(FrameManagementService);
 
   private lastStateBeforeTransform = new WeakMap<FabricObject, any>();
 
@@ -49,6 +52,10 @@ export class CanvasEventHandlerService {
         });
       }
 
+      if (!this.isFrame(obj)) {
+        this.frameManagement.applyFrameClipping(obj);
+      }
+
       this.emitObjectProperties(obj);
     });
 
@@ -61,6 +68,14 @@ export class CanvasEventHandlerService {
           scaleX: obj.scaleX,
           scaleY: obj.scaleY
         });
+      }
+
+      if (!this.isFrame(obj)) {
+        this.frameManagement.applyFrameClipping(obj);
+      } else {
+        // If scaling frame, update frame bounds and reapply clipping to all objects
+        this.frameManagement.updateFrameBounds(obj);
+        this.frameManagement.applyClippingToAllObjects();
       }
 
       this.emitObjectProperties(obj);
@@ -76,12 +91,22 @@ export class CanvasEventHandlerService {
         });
       }
 
+      if (!this.isFrame(obj)) {
+        this.frameManagement.applyFrameClipping(obj);
+      }
+
       this.emitObjectProperties(obj);
     });
 
     // Layer sync events
     canvas.on('object:added', (e) => {
-      // Only sync if it's a new object creation, not during reordering
+      const obj = e.target;
+
+      // Apply frame clipping to newly added objects
+      if (obj && !this.isFrame(obj)) {
+        this.frameManagement.applyFrameClipping(obj);
+      }
+
       setTimeout(() => {
         this.layerManagementService.syncLayers();
       }, 50);
@@ -119,6 +144,12 @@ export class CanvasEventHandlerService {
     this.lastStateBeforeTransform.delete(obj);
 
     if (!prev) return;
+
+    // Handle frame modifications separately
+    if (this.isFrame(obj)) {
+      this.handleFrameModified(obj, prev);
+      return;
+    }
 
     if ('left' in prev && 'top' in prev) {
       const command = new MoveObjectCommand(
@@ -161,5 +192,39 @@ export class CanvasEventHandlerService {
     if (activeObject) {
       this.emitObjectProperties(activeObject);
     }
+  }
+
+  private isFrame(obj: FabricObject): boolean {
+    const metadata = obj.get('customMetadata') as any;
+    return metadata?.isMainFrame === true;
+  }
+
+  private handleFrameModified(frame: FabricObject, prev: any): void {
+    const canvas = this.stateService.getCanvas();
+
+    // Create command for frame modification
+    const command = new UpdateFrameCommand(
+      canvas,
+      frame,
+      {
+        ...frame,
+        ...prev
+      },
+      {
+        left: frame.left,
+        top: frame.top,
+        scaleX: frame.scaleX,
+        scaleY: frame.scaleY,
+        width: frame.width,
+        height: frame.height
+      },
+      () => {
+        this.frameManagement.updateFrameBounds(frame);
+        this.frameManagement.applyClippingToAllObjects();
+        this.emitObjectProperties(frame);
+      }
+    );
+
+    this.commandManager.execute(command);
   }
 }

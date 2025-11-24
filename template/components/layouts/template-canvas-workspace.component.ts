@@ -1,4 +1,12 @@
-import { AfterViewInit, Component, ElementRef, inject, OnDestroy, ViewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  inject,
+  Input,
+  OnDestroy,
+  ViewChild
+} from '@angular/core';
 import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
 
 @Component({
@@ -20,8 +28,13 @@ import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service
 export class TemplateCanvasWorkspaceComponent implements AfterViewInit, OnDestroy {
   private canvasService = inject(CanvasFacadeService);
 
+  @Input() isLoading = false;
+  @Input() skipFrameCreation = false;
+
   @ViewChild('canvasElement') canvasElement!: ElementRef<HTMLCanvasElement>;
   @ViewChild('canvasContainerElement') canvasContainerElement!: ElementRef<HTMLElement>;
+
+  private resizeObserver?: ResizeObserver;
 
   ngAfterViewInit(): void {
     this.canvasService.initCanvas(
@@ -30,12 +43,32 @@ export class TemplateCanvasWorkspaceComponent implements AfterViewInit, OnDestro
       this.canvasContainerElement.nativeElement.clientHeight
     );
 
-    setTimeout(() => {
-      this.canvasService.addFrame(300, 600);
-    }, 100);
+    if (!this.skipFrameCreation) {
+      setTimeout(() => {
+        this.canvasService.initializeFrame(300, 600);
+      }, 100);
+    }
+
+    this.setupResizeObserver();
   }
 
   ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
     this.canvasService.disposeCanvas();
+  }
+
+  private setupResizeObserver(): void {
+    this.resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+
+        // Debounce resize to avoid too many calls
+        requestAnimationFrame(() => {
+          this.canvasService.resizeCanvas(width, height);
+        });
+      }
+    });
+
+    this.resizeObserver.observe(this.canvasContainerElement.nativeElement);
   }
 }

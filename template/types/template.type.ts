@@ -26,3 +26,13 @@ export interface TemplateContent {
   htmlFile: string;
   jsonFile: string;
 }
+
+export interface TemplateUpdateRequest {
+  templateId: number;
+  name: string;
+  jsonFile: string;
+  ratio: number;
+  description?: string;
+  thumbnailFileId?: number;
+  htmlFile?: string;
+}

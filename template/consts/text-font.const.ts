@@ -1,18 +1,29 @@
 export const fontFamily = [
-  { name: 'Arial', value: 'Arial, sans-serif' },
-  { name: 'Helvetica', value: 'Helvetica, sans-serif' },
-  { name: 'Times New Roman', value: '"Times New Roman", serif' },
-  { name: 'Georgia', value: 'Georgia, serif' },
-  { name: 'Courier New', value: '"Courier New", monospace' },
-  { name: 'Verdana', value: 'Verdana, sans-serif' },
-  { name: 'Tahoma', value: 'Tahoma, sans-serif' },
-  { name: 'Trebuchet MS', value: '"Trebuchet MS", sans-serif' },
-  { name: 'Impact', value: 'Impact, sans-serif' },
-  { name: 'Comic Sans MS', value: '"Comic Sans MS", cursive' },
   { name: 'Roboto', value: 'Roboto, sans-serif' },
-  { name: 'Montserrat', value: 'Montserrat, sans-serif' },
   { name: 'Open Sans', value: '"Open Sans", sans-serif' },
-  { name: 'Lato', value: 'Lato, sans-serif' }
+  { name: 'Lato', value: 'Lato, sans-serif' },
+  { name: 'Montserrat', value: 'Montserrat, sans-serif' },
+  { name: 'Poppins', value: 'Poppins, sans-serif' },
+  { name: 'Oswald', value: 'Oswald, sans-serif' },
+  { name: 'Source Sans Pro', value: '"Source Sans Pro", sans-serif' },
+  { name: 'Inter', value: 'Inter, sans-serif' },
+  { name: 'Raleway', value: 'Raleway, sans-serif' },
+  { name: 'Merriweather', value: 'Merriweather, serif' },
+  { name: 'Playfair Display', value: '"Playfair Display", serif' },
+  { name: 'Ubuntu', value: 'Ubuntu, sans-serif' },
+  { name: 'Nunito', value: 'Nunito, sans-serif' },
+  { name: 'PT Serif', value: '"PT Serif", serif' },
+  { name: 'Bebas Neue', value: '"Bebas Neue", sans-serif' },
+  { name: 'Barlow', value: 'Barlow, sans-serif' },
+  { name: 'Manrope', value: 'Manrope, sans-serif' },
+  { name: 'Fira Sans', value: '"Fira Sans", sans-serif' },
+  { name: 'Noto Sans', value: '"Noto Sans", sans-serif' },
+  { name: 'DM Sans', value: '"DM Sans", sans-serif' },
+  { name: 'Kanit', value: 'Kanit, sans-serif' },
+  { name: 'Quicksand', value: 'Quicksand, sans-serif' },
+  { name: 'Varela Round', value: '"Varela Round", sans-serif' },
+  { name: 'Libre Baskerville', value: '"Libre Baskerville", serif' },
+  { name: 'Cabin', value: 'Cabin, sans-serif' }
 ];
 
 export const fontWeights = [
@@ -34,7 +45,11 @@ export const fontSizes = [
   { name: '28', value: 28 },
   { name: '32', value: 32 },
   { name: '36', value: 36 },
+  { name: '40', value: 40 },
   { name: '48', value: 48 },
-  { name: '60', value: 60 },
-  { name: '72', value: 72 }
+  { name: '56', value: 56 },
+  { name: '64', value: 64 },
+  { name: '72', value: 72 },
+  { name: '80', value: 80 },
+  { name: '96', value: 96 }
 ];
