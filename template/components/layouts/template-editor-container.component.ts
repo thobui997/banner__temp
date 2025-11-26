@@ -31,7 +31,7 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
         <app-template-editor-header />
 
         <!-- Canvas Workspace -->
-        <app-template-canvas-workspace />
+        <app-template-canvas-workspace [skipFrameCreation]="skipFrameCreation" />
       </div>
 
       <!-- Right Sidebar: Objects Properties -->

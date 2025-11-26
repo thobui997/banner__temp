@@ -5,6 +5,8 @@ import { ImagePropertiesComponent } from '../properties-panel/image-properties.c
 import { TextPropertiesComponent } from '../properties-panel/text-properties.component';
 import { ButtonPropertiesComponent } from '../properties-panel/button-properties.component';
 import { FramePropertiesComponent } from '../properties-panel/frame-properties.component';
+import { ButtonDirective, ICON_DOUBLE_ARROW_RIGHT, IconSvgComponent } from '@gsf/ui';
+import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 
 @Component({
   selector: 'app-template-objects-properties-panel',
@@ -27,7 +29,12 @@ import { FramePropertiesComponent } from '../properties-panel/frame-properties.c
           }
         }
       } @else {
-        <div class="p-4 text-gray-500 text-sm">Select an object to edit properties</div>
+        <div class="flex items-center px-6 py-3">
+          <button gsfButton appColor="tertiary" class="text-text-primary-2" (click)="closePanel()">
+            <gsf-icon-svg [icon]="ICON_DOUBLE_ARROW_RIGHT" />
+          </button>
+        </div>
+        <div class="p-4 text-text-primary-2 text-sm">Select an object to edit properties</div>
       }
     </div>
   `,
@@ -36,11 +43,20 @@ import { FramePropertiesComponent } from '../properties-panel/frame-properties.c
     TextPropertiesComponent,
     ImagePropertiesComponent,
     ButtonPropertiesComponent,
-    FramePropertiesComponent
+    FramePropertiesComponent,
+    ButtonDirective,
+    IconSvgComponent
   ]
 })
 export class TemplateObjectsPropertiesPanelComponent {
   private canvasStateService = inject(CanvasStateService);
+  private panelToggleService = inject(PanelToggleService);
 
   properties$ = this.canvasStateService.selectedObjectProperties$;
+
+  ICON_DOUBLE_ARROW_RIGHT = ICON_DOUBLE_ARROW_RIGHT;
+
+  closePanel(): void {
+    this.panelToggleService.closeRightPanel();
+  }
 }

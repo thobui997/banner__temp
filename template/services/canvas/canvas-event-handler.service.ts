@@ -9,6 +9,8 @@ import { ObjectPropertiesExtractorService } from '../objects/object-properties-e
 import { CanvasStateService } from './canvas-state.service';
 import { FrameManagementService } from '../frame/frame-management.service';
 import { UpdateFrameCommand } from '../../commands/update-frame.command';
+import { SnapLineService } from './canvas-snap-line.service';
+
 
 @Injectable()
 export class CanvasEventHandlerService {
@@ -17,8 +19,10 @@ export class CanvasEventHandlerService {
   private layerManagementService = inject(LayerManagementService);
   private commandManager = inject(CommandManagerService);
   private frameManagement = inject(FrameManagementService);
+  private snapLineService = inject(SnapLineService);
 
   private lastStateBeforeTransform = new WeakMap<FabricObject, any>();
+  private snapEnabled = true;
 
   setupEventListeners(canvas: Canvas): void {
     // Selection events
@@ -38,9 +42,12 @@ export class CanvasEventHandlerService {
     canvas.on('object:modified', (e) => {
       if (!e.target) return;
       this.handleObjectModified(e);
+
+      // Clear snap lines after modification
+      this.snapLineService.clearSnapLines();
     });
 
-    // Real-time constraint events
+    // Real-time constraint events with snap lines
     canvas.on('object:moving', (e) => {
       const obj = e.target;
       if (!obj) return;
@@ -52,7 +59,23 @@ export class CanvasEventHandlerService {
         });
       }
 
-      if (!this.isFrame(obj)) {
+      // Apply snap lines if enabled and not moving frame
+      if (this.snapEnabled && !this.isFrame(obj)) {
+        const snapResult = this.snapLineService.calculateSnap(obj, obj.left || 0, obj.top || 0);
+
+        if (snapResult.snapped) {
+          obj.set({
+            left: snapResult.snapPosition.left,
+            top: snapResult.snapPosition.top
+          });
+          obj.setCoords();
+          this.snapLineService.showSnapLines(snapResult.snapLines);
+        } else {
+          this.snapLineService.clearSnapLines();
+        }
+
+        this.frameManagement.applyFrameClipping(obj);
+      } else if (!this.isFrame(obj)) {
         this.frameManagement.applyFrameClipping(obj);
       }
 
@@ -98,6 +121,11 @@ export class CanvasEventHandlerService {
       this.emitObjectProperties(obj);
     });
 
+    // Clear snap lines when mouse is released
+    canvas.on('mouse:up', () => {
+      this.snapLineService.clearSnapLines();
+    });
+
     // Layer sync events
     canvas.on('object:added', (e) => {
       const obj = e.target;
@@ -120,6 +148,41 @@ export class CanvasEventHandlerService {
 
     // Initialize layers
     this.layerManagementService.syncLayers();
+
+    // Enable snap by default
+    this.enableSnap();
+  }
+
+  /**
+   * Enable snap functionality
+   */
+  enableSnap(): void {
+    this.snapEnabled = true;
+  }
+
+  /**
+   * Disable snap functionality
+   */
+  disableSnap(): void {
+    this.snapEnabled = false;
+    this.snapLineService.clearSnapLines();
+  }
+
+  /**
+   * Toggle snap functionality
+   */
+  toggleSnap(): void {
+    this.snapEnabled = !this.snapEnabled;
+    if (!this.snapEnabled) {
+      this.snapLineService.clearSnapLines();
+    }
+  }
+
+  /**
+   * Check if snap is enabled
+   */
+  isSnapEnabled(): boolean {
+    return this.snapEnabled;
   }
 
   private handleSelectionChange(obj: FabricObject | null): void {

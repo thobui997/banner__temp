@@ -8,14 +8,18 @@ import {
   ViewChild
 } from '@angular/core';
 import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
+import { ZoomControlsComponent } from '../zoom-controls.component';
 
 @Component({
   selector: 'app-template-canvas-workspace',
   standalone: true,
+  imports: [ZoomControlsComponent],
   template: `
-    <div class="h-full" #canvasContainerElement>
+    <div class="h-full relative" #canvasContainerElement>
       <canvas #canvasElement></canvas>
     </div>
+
+    <app-zoom-controls />
   `,
   styles: [
     `

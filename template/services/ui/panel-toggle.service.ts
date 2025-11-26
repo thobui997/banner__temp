@@ -7,7 +7,7 @@ export interface PanelState {
   rightPanelOpen: boolean;
 }
 
-@Injectable({ providedIn: 'root' })
+@Injectable()
 export class PanelToggleService {
   private stateSubject = new BehaviorSubject<PanelState>({
     leftPanelOpen: true,

@@ -33,4 +33,12 @@ export class GeneralInfomationFormService {
       description: data.description
     });
   }
+
+  getForm() {
+    return this.form;
+  }
+
+  markAsPristine() {
+    this.form.markAsPristine();
+  }
 }

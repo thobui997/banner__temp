@@ -1,9 +1,14 @@
 import { Component, inject, OnInit } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { UnsavedDataTracker } from '@gsf/admin/app/shared/base';
 import { PageTitleComponent } from '@gsf/admin/app/shared/components';
+import { FileModule } from '@gsf/admin/app/shared/enums';
 import { PageLayoutComponent } from '@gsf/admin/app/shared/layouts';
-import { CurrentUserInfoManagementService } from '@gsf/admin/app/shared/services';
+import { WithCanDeactivate } from '@gsf/admin/app/shared/mixins';
+import { FileUploadService } from '@gsf/admin/app/shared/services/api/file-upload.service';
 import { ErrorMappingService } from '@gsf/admin/app/shared/services/error-mapping.service';
 import { ButtonDirective, ICON_ARROW_LEFT_OUTLINE, IconSvgComponent, ToastService } from '@gsf/ui';
+import { map, switchMap } from 'rxjs';
 import { TemplateEditorContainerComponent } from '../../components/layouts/template-editor-container.component';
 import { TemplateApiService } from '../../services/api/template-api.service';
 import { CanvasEventHandlerService } from '../../services/canvas/canvas-event-handler.service';
@@ -11,18 +16,19 @@ import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service
 import { CanvasInitializationService } from '../../services/canvas/canvas-initialization.service';
 import { CanvasStateService } from '../../services/canvas/canvas-state.service';
 import { GeneralInfomationFormService } from '../../services/forms/general-information-form.service';
+import { FrameManagementService } from '../../services/frame/frame-management.service';
+import { FrameRatioService } from '../../services/frame/frame-ratio.service';
 import { LayerManagementService } from '../../services/layers/layer-management.service';
 import { ObjectCreationService } from '../../services/objects/object-creation.service';
+import { ObjectDeserializerService } from '../../services/objects/object-deserializer.service';
 import { ObjectPropertiesExtractorService } from '../../services/objects/object-properties-extractor.service';
 import { ObjectUpdateService } from '../../services/objects/object-update.service';
-import { TemplateRequest, TemplateUpdateRequest } from '../../types/template.type';
-import { RatioEnum } from '../../enums/ratio.enum';
-import { FileUploadService } from '@gsf/admin/app/shared/services/api/file-upload.service';
-import { FileModule } from '@gsf/admin/app/shared/enums';
-import { map, switchMap } from 'rxjs';
-import { FrameManagementService } from '../../services/frame/frame-management.service';
-import { ActivatedRoute, Router } from '@angular/router';
-import { ObjectDeserializerService } from '../../services/objects/object-deserializer.service';
+import { TemplateUpdateRequest } from '../../types/template.type';
+import { SnapLineService } from '../../services/canvas/canvas-snap-line.service';
+import { CanvasZoomService } from '../../services/canvas/canvas-zoom.service';
+import { PanelToggleService } from '../../services/ui/panel-toggle.service';
+
+const CanDeactivateBase = WithCanDeactivate(UnsavedDataTracker);
 
 @Component({
   selector: 'app-template-edit',
@@ -47,10 +53,14 @@ import { ObjectDeserializerService } from '../../services/objects/object-deseria
     GeneralInfomationFormService,
     TemplateApiService,
     FrameManagementService,
-    ObjectDeserializerService
+    ObjectDeserializerService,
+    FrameRatioService,
+    SnapLineService,
+    CanvasZoomService,
+    PanelToggleService
   ]
 })
-export class TemplateEditComponent implements OnInit {
+export class TemplateEditComponent extends CanDeactivateBase implements OnInit {
   private route = inject(ActivatedRoute);
   private generalInfoFormService = inject(GeneralInfomationFormService);
   private templateApiService = inject(TemplateApiService);
@@ -58,15 +68,13 @@ export class TemplateEditComponent implements OnInit {
   private toastService = inject(ToastService);
   private errorMappingService = inject(ErrorMappingService);
   private fileUploadService = inject(FileUploadService);
-  private router = inject(Router);
+  private frameRatioService = inject(FrameRatioService);
 
   ICON_LEFT_OUTLINE = ICON_ARROW_LEFT_OUTLINE;
   templateId: number | null = null;
   isLoading = false;
 
   ngOnInit(): void {
-    this.generalInfoFormService.createForm();
-
     this.templateId = Number(this.route.snapshot.paramMap.get('id'));
     if (this.templateId) {
       this.loadTemplate();
@@ -84,11 +92,12 @@ export class TemplateEditComponent implements OnInit {
     const jsonFile = this.canvasFacadeService.exportTemplateToJson();
     const generalInfo = this.generalInfoFormService.getGeneralInfoFormValues();
     const thumbnailFile = await this.canvasFacadeService.generateThumbnailFile();
+    const currentRatio = this.frameRatioService.getCurrentRatio();
 
     const payload: TemplateUpdateRequest = {
       templateId: this.templateId,
       jsonFile,
-      ratio: RatioEnum.Ratio1x2,
+      ratio: currentRatio,
       ...generalInfo
     };
 
@@ -106,6 +115,8 @@ export class TemplateEditComponent implements OnInit {
       .subscribe({
         next: () => {
           this.toastService.success({ message: 'Update template successfully' });
+
+          this.generalInfoFormService.markAsPristine();
           this.goToList();
         },
         error: (err) => {
@@ -116,6 +127,10 @@ export class TemplateEditComponent implements OnInit {
 
   goToList() {
     this.router.navigateByUrl('/template');
+  }
+
+  override getFormGroup() {
+    return this.generalInfoFormService.getForm();
   }
 
   private loadTemplate(): void {
@@ -133,12 +148,14 @@ export class TemplateEditComponent implements OnInit {
           description: template.description
         });
 
+        this.frameRatioService.changeRatio(template.ratio);
+
         // Load JSON into canvas (delay to ensure canvas is initialized)
         setTimeout(() => {
           const jsonContent = template.templateContent.jsonFile;
           this.canvasFacadeService.loadTemplateFromJson(jsonContent);
           this.isLoading = false;
-        }, 500);
+        }, 300);
       },
       error: (err) => {
         this.errorMappingService.toToast(err);

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   DeleteButtonComponent,
@@ -9,16 +9,25 @@ import {
 } from '@gsf/admin/app/shared/components';
 import { AppTableComponent } from '@gsf/admin/app/shared/components/app-table/app-table.component';
 import { PageLayoutComponent } from '@gsf/admin/app/shared/layouts';
-import { AdvancedSearchService, PaginationService } from '@gsf/admin/app/shared/services';
-import { ButtonDirective, ICON_ADD_OUTLINE, IconSvgComponent } from '@gsf/ui';
+import {
+  AdvancedSearchService,
+  ConfirmDialogService,
+  PaginationService
+} from '@gsf/admin/app/shared/services';
+import { ButtonDirective, ICON_ADD_OUTLINE, IconSvgComponent, ToastService } from '@gsf/ui';
 import { TemplateColumns } from '../../consts/template-colums';
-import { combineLatest, map, switchMap, tap } from 'rxjs';
+import { combineLatest, EMPTY, map, switchMap, tap } from 'rxjs';
 import { Destroyer } from '@gsf/admin/app/shared/base';
 import { WithRefreshable } from '@gsf/admin/app/shared/mixins';
 import { TemplateApiService } from '../../services/api/template-api.service';
 import { buildAdvancedQueryParams } from '../../utils/build-advanced-query-params';
-import { CellDefDirective } from '@gsf/admin/app/shared/directives';
+import {
+  CellDefDirective,
+  IsGrantedByPermissionsDirective
+} from '@gsf/admin/app/shared/directives';
 import { FilterField } from '@gsf/admin/app/shared/types';
+import { ErrorMappingService } from '@gsf/admin/app/shared/services/error-mapping.service';
+import { PermissionEnum } from '@gsf/admin/app/shared/enums/permission.enum';
 
 const BaseComponent = WithRefreshable(Destroyer);
 
@@ -36,7 +45,8 @@ const BaseComponent = WithRefreshable(Destroyer);
     ButtonDirective,
     DeleteButtonComponent,
     EditButtonComponent,
-    CellDefDirective
+    CellDefDirective,
+    IsGrantedByPermissionsDirective
   ],
   providers: [AdvancedSearchService, PaginationService, TemplateApiService]
 })
@@ -45,10 +55,17 @@ export class TemplateListComponent extends BaseComponent {
   private advancedSearchService = inject(AdvancedSearchService);
   private paginationService = inject(PaginationService);
   private api = inject(TemplateApiService);
+  private confirmDialogService = inject(ConfirmDialogService);
+  private toastService = inject(ToastService);
+  private errorMappingService = inject(ErrorMappingService);
 
   ICON_ADD_OUTLINE = ICON_ADD_OUTLINE;
 
   tableColumns = TemplateColumns;
+
+  currentDataLength = signal(0);
+
+  PermissionEnum = PermissionEnum;
 
   filterConfiguration = computed<FilterField[]>(() => [
     {
@@ -100,7 +117,10 @@ export class TemplateListComponent extends BaseComponent {
         })
       );
     }),
-    map((res) => res.result.data)
+    map((res) => res.result.data),
+    tap((data) => {
+      this.currentDataLength.set(data.length);
+    })
   );
 
   goToCreateTemplaePage() {
@@ -109,5 +129,30 @@ export class TemplateListComponent extends BaseComponent {
 
   goToEditTemplate(templateId: number): void {
     this.router.navigate(['/template/edit', templateId]);
+  }
+
+  deleteTemplate(id: number) {
+    if (!id) return;
+
+    this.confirmDialogService
+      .openDeleteConfirmDialog('Delete Template?', 'Are you sure you want to delete this template?')
+      .pipe(
+        switchMap((data) => {
+          if (!data) return EMPTY;
+          return this.api.deleteTemplateById(id);
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.toastService.success({ message: 'Template deleted successfully' });
+
+          this.paginationService.handlePostDeletionNavigation(this.currentDataLength(), () =>
+            this.refresh()
+          );
+        },
+        error: (err) => {
+          this.errorMappingService.toToast(err);
+        }
+      });
   }
 }

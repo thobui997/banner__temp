@@ -2,9 +2,11 @@
   <ng-template #pageHeader>
     <div class="flex justify-between">
       <app-page-title heading="Template"></app-page-title>
-      <button gsfButton (click)="goToCreateTemplaePage()">
-        <gsf-icon-svg [icon]="ICON_ADD_OUTLINE" /> Add Template
-      </button>
+      <ng-container *isGrantedByPermissions="[PermissionEnum['Template.Create']]">
+        <button gsfButton (click)="goToCreateTemplaePage()">
+          <gsf-icon-svg [icon]="ICON_ADD_OUTLINE" /> Add Template
+        </button>
+      </ng-container>
     </div>
   </ng-template>
 
@@ -40,12 +42,25 @@
                 </div>
               }
             </ng-template>
-            <ng-template appCellDef="createdBy" let-row> </ng-template>
+
+            <ng-template appCellDef="createdBy" let-row>
+              <div class="flex flex-col gap-1">
+                <span class="text-sm text-text-primary-2 font-medium">{{ row.createdByName }}</span>
+                <span class="text-sm text-text-secondary">
+                  {{ row.createdOn | date: 'dd/MM/yyyy hh:mma' | lowercase }}
+                </span>
+              </div>
+            </ng-template>
 
             <ng-template appCellDef="action" let-row>
               <div class="flex items-center">
-                <app-edit-button (edit)="goToEditTemplate(row.id)" />
-                <app-delete-button />
+                <ng-container *isGrantedByPermissions="[PermissionEnum['Template.Edit']]">
+                  <app-edit-button (edit)="goToEditTemplate(row.id)" />
+                </ng-container>
+
+                <ng-container *isGrantedByPermissions="[PermissionEnum['Template.Delete']]">
+                  <app-delete-button (delete)="deleteTemplate(row.id)" />
+                </ng-container>
               </div>
             </ng-template>
           </app-table>

@@ -106,7 +106,7 @@ export class FrameManagementService {
       top: frameBounds.top,
       width: frameBounds.width,
       height: frameBounds.height,
-      absolutePositioned: true, // Important: use absolute positioning
+      absolutePositioned: true,
       fill: 'transparent',
       stroke: 'transparent'
     });

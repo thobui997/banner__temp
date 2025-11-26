@@ -16,16 +16,15 @@ export class ObjectDeserializerService {
     const canvas = this.stateService.getCanvas();
     if (!canvas || !jsonData.objects) return;
 
-  
     // Process each object
     for (const objData of jsonData.objects) {
       try {
         const fabricObj = await this.deserializeObject(objData);
-        
+
         if (fabricObj) {
           // Add to canvas
           canvas.add(fabricObj);
-          
+
           // Special handling for frame
           const metadata = fabricObj.get('customMetadata') as any;
           if (metadata?.type === VariableType.FRAME) {
@@ -218,35 +217,9 @@ export class ObjectDeserializerService {
    * Deserialize Rect
    */
   private deserializeRect(objData: any): Rect {
-    const bgColorPreset = objData.bgColorPreset;
-    const customMetadata = objData.customMetadata;
-
     const rect = new Rect({
-      left: objData.left,
-      top: objData.top,
-      width: objData.width,
-      height: objData.height,
-      fill: objData.fill,
-      stroke: objData.stroke,
-      strokeWidth: objData.strokeWidth,
-      rx: objData.rx || 0,
-      ry: objData.ry || 0,
-      angle: objData.angle || 0,
-      scaleX: objData.scaleX || 1,
-      scaleY: objData.scaleY || 1,
-      opacity: objData.opacity !== undefined ? objData.opacity : 1,
-      visible: objData.visible !== false,
-      originX: objData.originX || 'left',
-      originY: objData.originY || 'top'
+      ...objData
     });
-
-    if (bgColorPreset) {
-      rect.set('bgColorPreset', bgColorPreset);
-    }
-
-    if (customMetadata) {
-      rect.set('customMetadata', customMetadata);
-    }
 
     return rect;
   }

@@ -36,4 +36,8 @@ export class TemplateApiService {
   updateTemplate(payload: TemplateUpdateRequest) {
     return this.httpClient.post(`${this.baseUrl}/update`, payload);
   }
+
+  deleteTemplateById(id: number) {
+    return this.httpClient.delete(`${this.baseUrl}/${id}`);
+  }
 }

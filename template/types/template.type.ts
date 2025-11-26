@@ -11,14 +11,17 @@ export interface TemplateRequest {
 }
 
 export interface TemplateResponse {
-  id: number;
   campusId: number;
-  name: string;
   description: string;
   ratio: number;
   thumbnailFileId: number;
   thumbnailFile: FileStorage;
   templateContent: TemplateContent;
+  id: number;
+  name: string;
+  createdOn: string;
+  createdBy: number;
+  createdByName: string;
 }
 
 export interface TemplateContent {

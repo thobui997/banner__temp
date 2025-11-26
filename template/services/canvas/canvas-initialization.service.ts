@@ -2,11 +2,13 @@ import { inject, Injectable } from '@angular/core';
 import { Canvas } from 'fabric';
 import { CanvasStateService } from './canvas-state.service';
 import { CanvasEventHandlerService } from './canvas-event-handler.service';
+import { CanvasZoomService } from './canvas-zoom.service';
 
 @Injectable()
 export class CanvasInitializationService {
   private canvasStateService = inject(CanvasStateService);
   private eventHandlerService = inject(CanvasEventHandlerService);
+  private zoomService = inject(CanvasZoomService);
 
   initCanvas(element: HTMLCanvasElement, width: number, height: number): Canvas {
     const canvas = new Canvas(element, {
@@ -17,6 +19,7 @@ export class CanvasInitializationService {
 
     this.canvasStateService.setCanvas(canvas);
     this.eventHandlerService.setupEventListeners(canvas);
+    this.zoomService.initializeZoom(canvas);
 
     return canvas;
   }
@@ -26,5 +29,6 @@ export class CanvasInitializationService {
     if (canvas) {
       canvas.dispose();
     }
+    this.zoomService.destroy();
   }
 }

@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Canvas, FabricObject, util } from 'fabric';
+import { Canvas, FabricObject } from 'fabric';
 import { Observable } from 'rxjs';
 import {
   ButtonProperties,
@@ -8,15 +8,16 @@ import {
   ImageProperties
 } from '../../types/canvas-object.type';
 import { Layer } from '../../types/layer.type';
+import { FrameManagementService } from '../frame/frame-management.service';
+import { FrameRatioService } from '../frame/frame-ratio.service';
 import { LayerManagementService } from '../layers/layer-management.service';
 import { ObjectCreationService } from '../objects/object-creation.service';
+import { ObjectDeserializerService } from '../objects/object-deserializer.service';
 import { ObjectUpdateService } from '../objects/object-update.service';
 import { CanvasEventHandlerService } from './canvas-event-handler.service';
 import { CanvasInitializationService } from './canvas-initialization.service';
 import { CanvasStateService } from './canvas-state.service';
-import { FrameManagementService } from '../frame/frame-management.service';
-import { VariableType } from '../../consts/variables.const';
-import { ObjectDeserializerService } from '../objects/object-deserializer.service';
+import { CanvasZoomService, ZoomState } from './canvas-zoom.service';
 
 @Injectable()
 export class CanvasFacadeService {
@@ -28,15 +29,21 @@ export class CanvasFacadeService {
   private layerManagementService = inject(LayerManagementService);
   private frameManagement = inject(FrameManagementService);
   private deserializer = inject(ObjectDeserializerService);
+  private ratioService = inject(FrameRatioService);
+  private zoomService = inject(CanvasZoomService);
 
   readonly layers$: Observable<Layer[]>;
   readonly selectedObject$: Observable<FabricObject | null>;
   readonly selectedObjectProperties$: Observable<CanvasObjectProperties | null>;
+  readonly currentRatio$: Observable<number>;
+  readonly zoomState$: Observable<ZoomState>;
 
   constructor() {
     this.selectedObject$ = this.stateService.selectedObject$;
     this.selectedObjectProperties$ = this.stateService.selectedObjectProperties$;
     this.layers$ = this.layerManagementService.layers$;
+    this.currentRatio$ = this.ratioService.currentRatio$;
+    this.zoomState$ = this.zoomService.zoomState$;
   }
 
   // Initialization
@@ -44,7 +51,7 @@ export class CanvasFacadeService {
     this.initService.initCanvas(element, width, height);
   }
 
-  initializeFrame(width: number, height: number): void {
+  initializeFrame(width: number, height: number, ratioValue?: number): void {
     const canvas = this.stateService.getCanvas();
     const frame = this.frameManagement.initializeFrame(width, height);
 
@@ -52,6 +59,13 @@ export class CanvasFacadeService {
     canvas.sendObjectToBack(frame);
     canvas.setActiveObject(frame);
     canvas.requestRenderAll();
+
+    // Initialize ratio service with the frame's ratio
+    if (ratioValue !== undefined) {
+      this.ratioService['currentRatioSubject'].next(ratioValue);
+    } else {
+      this.ratioService.initializeRatioFromFrame();
+    }
   }
 
   disposeCanvas(): void {
@@ -130,6 +144,44 @@ export class CanvasFacadeService {
     this.layerManagementService.reorderLayers(previousIndex, currentIndex);
   }
 
+  // Ratio management
+  changeFrameRatio(ratioValue: number): void {
+    this.ratioService.changeRatio(ratioValue);
+  }
+
+  getCurrentRatio(): number {
+    return this.ratioService.getCurrentRatio();
+  }
+
+  // Zoom methods
+  zoomIn(): void {
+    this.zoomService.zoomIn();
+  }
+
+  zoomOut(): void {
+    this.zoomService.zoomOut();
+  }
+
+  resetZoom(): void {
+    this.zoomService.resetZoom();
+  }
+
+  zoomToFit(): void {
+    this.zoomService.zoomToFit();
+  }
+
+  setZoom(zoom: number): void {
+    this.zoomService.setZoom(zoom);
+  }
+
+  getCurrentZoom(): number {
+    return this.zoomService.getCurrentZoom();
+  }
+
+  getZoomPercentage(): number {
+    return this.zoomService.getZoomPercentage();
+  }
+
   exportTemplateToJson() {
     const canvas = this.stateService.getCanvas();
     const objects = canvas.toObject([
@@ -137,7 +189,16 @@ export class CanvasFacadeService {
       'bgColorPreset',
       'attachments',
       'customMetadata',
-      'clipPath'
+      'clipPath',
+      'stroke',
+      'strokeWidth',
+      'borderColor',
+      'cornerStyle',
+      'cornerColor',
+      'transparentCorners',
+      'cornerSize',
+      'lockRotation',
+      'lockScalingFlip'
     ]);
 
     return JSON.stringify(objects);
@@ -194,6 +255,9 @@ export class CanvasFacadeService {
     // Deserialize and add objects
     const data = jsonData ? JSON.parse(jsonData) : {};
     await this.deserializer.deserializeAndAddObjects(data);
+
+    // Initialize ratio from loaded frame
+    this.ratioService.initializeRatioFromFrame();
 
     // Sync layers
     this.syncLayers();

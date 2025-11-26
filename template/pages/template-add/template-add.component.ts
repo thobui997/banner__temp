@@ -1,28 +1,34 @@
 import { Component, inject } from '@angular/core';
+import { UnsavedDataTracker } from '@gsf/admin/app/shared/base';
 import { PageTitleComponent } from '@gsf/admin/app/shared/components';
+import { FileModule } from '@gsf/admin/app/shared/enums';
 import { PageLayoutComponent } from '@gsf/admin/app/shared/layouts';
+import { WithCanDeactivate } from '@gsf/admin/app/shared/mixins';
 import { CurrentUserInfoManagementService } from '@gsf/admin/app/shared/services';
+import { FileUploadService } from '@gsf/admin/app/shared/services/api/file-upload.service';
 import { ErrorMappingService } from '@gsf/admin/app/shared/services/error-mapping.service';
 import { ButtonDirective, ICON_ARROW_LEFT_OUTLINE, IconSvgComponent, ToastService } from '@gsf/ui';
+import { map, switchMap } from 'rxjs';
 import { TemplateEditorContainerComponent } from '../../components/layouts/template-editor-container.component';
 import { TemplateApiService } from '../../services/api/template-api.service';
 import { CanvasEventHandlerService } from '../../services/canvas/canvas-event-handler.service';
 import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
 import { CanvasInitializationService } from '../../services/canvas/canvas-initialization.service';
+import { SnapLineService } from '../../services/canvas/canvas-snap-line.service';
 import { CanvasStateService } from '../../services/canvas/canvas-state.service';
+import { CanvasZoomService } from '../../services/canvas/canvas-zoom.service';
 import { GeneralInfomationFormService } from '../../services/forms/general-information-form.service';
+import { FrameManagementService } from '../../services/frame/frame-management.service';
+import { FrameRatioService } from '../../services/frame/frame-ratio.service';
 import { LayerManagementService } from '../../services/layers/layer-management.service';
 import { ObjectCreationService } from '../../services/objects/object-creation.service';
+import { ObjectDeserializerService } from '../../services/objects/object-deserializer.service';
 import { ObjectPropertiesExtractorService } from '../../services/objects/object-properties-extractor.service';
 import { ObjectUpdateService } from '../../services/objects/object-update.service';
+import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 import { TemplateRequest } from '../../types/template.type';
-import { RatioEnum } from '../../enums/ratio.enum';
-import { FileUploadService } from '@gsf/admin/app/shared/services/api/file-upload.service';
-import { FileModule } from '@gsf/admin/app/shared/enums';
-import { map, switchMap } from 'rxjs';
-import { FrameManagementService } from '../../services/frame/frame-management.service';
-import { ObjectDeserializerService } from '../../services/objects/object-deserializer.service';
-import { Router } from '@angular/router';
+
+const CanDeactivateBase = WithCanDeactivate(UnsavedDataTracker);
 
 @Component({
   selector: 'app-template-add',
@@ -47,10 +53,14 @@ import { Router } from '@angular/router';
     GeneralInfomationFormService,
     TemplateApiService,
     FrameManagementService,
-    ObjectDeserializerService
+    ObjectDeserializerService,
+    FrameRatioService,
+    SnapLineService,
+    CanvasZoomService,
+    PanelToggleService
   ]
 })
-export class TemplateAddComponent {
+export class TemplateAddComponent extends CanDeactivateBase {
   private generalInfoFormService = inject(GeneralInfomationFormService);
   private templateApiService = inject(TemplateApiService);
   private canvasFacadeService = inject(CanvasFacadeService);
@@ -58,7 +68,7 @@ export class TemplateAddComponent {
   private errorMappingService = inject(ErrorMappingService);
   private currentUserInfoManagementService = inject(CurrentUserInfoManagementService);
   private fileUploadService = inject(FileUploadService);
-  private router = inject(Router);
+  private frameRatioService = inject(FrameRatioService);
 
   ICON_LEFT_OUTLINE = ICON_ARROW_LEFT_OUTLINE;
 
@@ -74,11 +84,12 @@ export class TemplateAddComponent {
     const jsonFile = this.canvasFacadeService.exportTemplateToJson();
     const generalInfo = this.generalInfoFormService.getGeneralInfoFormValues();
     const thumbnailFile = await this.canvasFacadeService.generateThumbnailFile();
+    const currentRatio = this.frameRatioService.getCurrentRatio();
 
     const payload: TemplateRequest = {
       campusId: currentCampus,
       jsonFile,
-      ratio: RatioEnum.Ratio1x2,
+      ratio: currentRatio,
       ...generalInfo
     };
 
@@ -96,6 +107,8 @@ export class TemplateAddComponent {
       .subscribe({
         next: () => {
           this.toastService.success({ message: 'Create template successfully' });
+
+          this.generalInfoFormService.markAsPristine();
           this.goToList();
         },
         error: (err) => {
@@ -106,5 +119,9 @@ export class TemplateAddComponent {
 
   goToList() {
     this.router.navigateByUrl('/template');
+  }
+
+  override getFormGroup() {
+    return this.generalInfoFormService.getForm();
   }
 }
