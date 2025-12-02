@@ -27,6 +27,7 @@ import { ObjectPropertiesExtractorService } from '../../services/objects/object-
 import { ObjectUpdateService } from '../../services/objects/object-update.service';
 import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 import { TemplateRequest } from '../../types/template.type';
+import { CommandManagerService } from '../../services/command/command-manager.service';
 
 const CanDeactivateBase = WithCanDeactivate(UnsavedDataTracker);
 
@@ -57,7 +58,8 @@ const CanDeactivateBase = WithCanDeactivate(UnsavedDataTracker);
     FrameRatioService,
     SnapLineService,
     CanvasZoomService,
-    PanelToggleService
+    PanelToggleService,
+    CommandManagerService
   ]
 })
 export class TemplateAddComponent extends CanDeactivateBase {

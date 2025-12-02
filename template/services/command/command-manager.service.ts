@@ -8,7 +8,7 @@ import { ICommand } from '../../types/command.type';
  * Implements Command Pattern for undo/redo.
  * Maintains two stacks: undo and redo.
  */
-@Injectable({ providedIn: 'root' })
+@Injectable()
 export class CommandManagerService {
   private undoStack: ICommand[] = [];
   private redoStack: ICommand[] = [];

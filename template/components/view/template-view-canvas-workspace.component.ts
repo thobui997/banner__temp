@@ -1,0 +1,116 @@
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  inject,
+  Input,
+  OnDestroy,
+  ViewChild
+} from '@angular/core';
+import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
+import { ZoomControlsComponent } from '../zoom-controls.component';
+import { CanvasStateService } from '../../services/canvas/canvas-state.service';
+
+@Component({
+  selector: 'app-template-view-canvas-workspace',
+  standalone: true,
+  imports: [ZoomControlsComponent],
+  template: `
+    <div class="h-full relative" #canvasContainerElement>
+      <canvas #canvasElement></canvas>
+
+      <!-- Read-only overlay indicator -->
+      <div class="absolute top-4 right-4 z-10">
+        <div class="bg-gray-800 text-white px-3 py-1 rounded text-sm shadow-lg">Read-only Mode</div>
+      </div>
+    </div>
+
+    <app-zoom-controls />
+  `,
+  styles: [
+    `
+      :host {
+        flex: 1;
+      }
+    `
+  ]
+})
+export class TemplateViewCanvasWorkspaceComponent implements AfterViewInit, OnDestroy {
+  private canvasService = inject(CanvasFacadeService);
+  private canvasStateService = inject(CanvasStateService);
+
+  @Input() isLoading = false;
+  @Input() skipFrameCreation = false;
+
+  @ViewChild('canvasElement') canvasElement!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('canvasContainerElement') canvasContainerElement!: ElementRef<HTMLElement>;
+
+  private resizeObserver?: ResizeObserver;
+
+  ngAfterViewInit(): void {
+    this.canvasService.initCanvas(
+      this.canvasElement.nativeElement,
+      this.canvasContainerElement.nativeElement.clientWidth,
+      this.canvasContainerElement.nativeElement.clientHeight
+    );
+
+    if (!this.skipFrameCreation) {
+      setTimeout(() => {
+        this.canvasService.initializeFrame(300, 600);
+      }, 100);
+    }
+
+    // Make canvas read-only after initialization
+    setTimeout(() => {
+      this.makeCanvasReadOnly();
+    }, 500);
+
+    this.setupResizeObserver();
+  }
+
+  ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
+    this.canvasService.disposeCanvas();
+  }
+
+  private makeCanvasReadOnly(): void {
+    const canvas = this.canvasStateService.getCanvas();
+    if (!canvas) return;
+
+    // Disable selection
+    canvas.selection = false;
+
+    // Make all objects non-selectable and non-interactive
+    canvas.forEachObject((obj) => {
+      obj.selectable = false;
+      obj.evented = false;
+      obj.hasControls = false;
+      obj.hasBorders = false;
+      obj.lockMovementX = true;
+      obj.lockMovementY = true;
+      obj.lockRotation = true;
+      obj.lockScalingX = true;
+      obj.lockScalingY = true;
+    });
+
+    // Set cursor to default
+    canvas.defaultCursor = 'default';
+    canvas.hoverCursor = 'default';
+
+    canvas.requestRenderAll();
+  }
+
+  private setupResizeObserver(): void {
+    this.resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+
+        requestAnimationFrame(() => {
+          this.canvasService.resizeCanvas(width, height);
+        });
+      }
+    });
+
+    this.resizeObserver.observe(this.canvasContainerElement.nativeElement);
+  }
+}

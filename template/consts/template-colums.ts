@@ -27,7 +27,7 @@ export const TemplateColumns: TableColumn<TemplateResponse>[] = [
   },
   {
     def: 'action',
-    header: 'Action',
+    header: 'Actions',
     width: '100px'
   }
 ];

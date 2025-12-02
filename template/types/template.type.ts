@@ -1,4 +1,4 @@
-import { FileStorage } from '@gsf/admin/app/shared/types';
+import { AdvancedSearchParams, FileStorage } from '@gsf/admin/app/shared/types';
 
 export interface TemplateRequest {
   campusId: number;
@@ -38,4 +38,8 @@ export interface TemplateUpdateRequest {
   description?: string;
   thumbnailFileId?: number;
   htmlFile?: string;
+}
+
+export interface TemplateListRequest extends AdvancedSearchParams {
+  createdByIds?: number[];
 }

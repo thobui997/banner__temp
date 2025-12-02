@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   DeleteButtonComponent,
@@ -25,9 +25,12 @@ import {
   CellDefDirective,
   IsGrantedByPermissionsDirective
 } from '@gsf/admin/app/shared/directives';
-import { FilterField } from '@gsf/admin/app/shared/types';
+import { FilterField, RowEvent } from '@gsf/admin/app/shared/types';
 import { ErrorMappingService } from '@gsf/admin/app/shared/services/error-mapping.service';
 import { PermissionEnum } from '@gsf/admin/app/shared/enums/permission.enum';
+import { TemplateResponse } from '../../types/template.type';
+import { RatioEnum } from '../../enums/ratio.enum';
+import { AssingedUserLookupService } from '@gsf/admin/app/shared/services/lookup-service/assigned-user.service';
 
 const BaseComponent = WithRefreshable(Destroyer);
 
@@ -50,7 +53,7 @@ const BaseComponent = WithRefreshable(Destroyer);
   ],
   providers: [AdvancedSearchService, PaginationService, TemplateApiService]
 })
-export class TemplateListComponent extends BaseComponent {
+export class TemplateListComponent extends BaseComponent implements OnInit {
   private router = inject(Router);
   private advancedSearchService = inject(AdvancedSearchService);
   private paginationService = inject(PaginationService);
@@ -58,6 +61,7 @@ export class TemplateListComponent extends BaseComponent {
   private confirmDialogService = inject(ConfirmDialogService);
   private toastService = inject(ToastService);
   private errorMappingService = inject(ErrorMappingService);
+  private assingedUserLookupService = inject(AssingedUserLookupService);
 
   ICON_ADD_OUTLINE = ICON_ADD_OUTLINE;
 
@@ -72,8 +76,17 @@ export class TemplateListComponent extends BaseComponent {
       type: 'select',
       key: 'ratio',
       label: 'Ratio',
-      placeholder: 'Select ratio',
-      options: [],
+      placeholder: 'Select Ratio',
+      options: [
+        {
+          name: '1:2',
+          value: RatioEnum.Ratio1x2
+        },
+        {
+          name: '16:9',
+          value: RatioEnum.Ratio16x9
+        }
+      ],
       isMultipleSelect: false,
       showSearchBox: false
     },
@@ -81,17 +94,19 @@ export class TemplateListComponent extends BaseComponent {
       type: 'select',
       key: 'createdBy',
       label: 'Created By',
-      placeholder: 'Select users',
-      options: [],
-      maxDisplayItem: 2,
+      placeholder: 'Select User',
+      options: this.assingedUserLookupService.assignedUsersOptions(),
+      maxDisplayItem: 1,
       isMultipleSelect: true,
       showSearchBox: true
     },
     {
       type: 'date-range',
-      key: 'creratedAt',
+      key: 'createdOn',
       label: 'Created at',
-      showFooter: false
+      showFooter: false,
+      fromPlaceholder: 'Select From',
+      toPlaceholder: 'Select To'
     }
   ]);
 
@@ -99,14 +114,16 @@ export class TemplateListComponent extends BaseComponent {
     this.advancedSearchService.searchTerm$,
     this.advancedSearchService.orderParam$,
     this.advancedSearchService.pageParams$,
+    this.advancedSearchService.filters$,
     this.refreshObservable$
   ]).pipe(
     map((params) => {
-      const [searchKeyword, sorting, pagination] = params;
+      const [searchKeyword, sorting, pagination, allFilters] = params;
       return buildAdvancedQueryParams({
         searchKeyword,
         sorting,
-        pagination
+        pagination,
+        allFilters
       });
     }),
     switchMap((params) => {
@@ -123,15 +140,27 @@ export class TemplateListComponent extends BaseComponent {
     })
   );
 
+  ngOnInit(): void {
+    this.assingedUserLookupService.fetchAssignedUsers().subscribe();
+  }
+
   goToCreateTemplaePage() {
     this.router.navigateByUrl('/template/add');
   }
 
-  goToEditTemplate(templateId: number): void {
-    this.router.navigate(['/template/edit', templateId]);
+  goToEditTemplate(templateId: number, event: Event): void {
+    event.stopPropagation();
+    this.router.navigate(['/template/edit', templateId], { queryParamsHandling: 'preserve' });
   }
 
-  deleteTemplate(id: number) {
+  goToView(event: RowEvent<TemplateResponse>) {
+    const { row } = event;
+
+    this.router.navigate(['/template', row.id]);
+  }
+
+  deleteTemplate(id: number, event: Event) {
+    event.stopPropagation();
     if (!id) return;
 
     this.confirmDialogService

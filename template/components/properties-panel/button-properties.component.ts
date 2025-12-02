@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { ICON_DOUBLE_ARROW_RIGHT, IconSvgComponent } from '@gsf/ui';
+import { ICON_DOUBLE_ARROW_RIGHT, IconSvgComponent, InputDirective } from '@gsf/ui';
 import { VariableType } from '../../consts/variables.const';
 import { BasePropertiesService } from '../../services/properties/base-properties.service';
 import { ButtonPropertiesFormService } from '../../services/forms/button-properties-form.service';
@@ -74,6 +74,10 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
         <app-property-section label="Text Alignment">
           <app-text-alignment formControlName="textAlignment" />
         </app-property-section>
+
+        <app-property-section label="Button Text">
+          <input gsfInput type="text" formControlName="text" />
+        </app-property-section>
       </div>
     </form>
   `,
@@ -87,7 +91,8 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
     ColorPickerComponent,
     TextFontPropertiesComponent,
     ShapeControlComponent,
-    StyleControlComponent
+    StyleControlComponent,
+    InputDirective
   ],
   providers: [
     ButtonPropertiesFormService,

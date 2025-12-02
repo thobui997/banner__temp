@@ -1,4 +1,4 @@
-import { Directive, OnInit } from '@angular/core';
+import { Directive, Input, OnInit } from '@angular/core';
 import { FormGroup } from '@angular/forms';
 import { BasePropertiesService } from '../../services/properties/base-properties.service';
 import { AlignmentType, TransformType } from '../../types/canvas-object.type';
@@ -9,13 +9,21 @@ import { AlignmentType, TransformType } from '../../types/canvas-object.type';
  */
 @Directive()
 export abstract class BasePropertiesComponent<TFormService> implements OnInit {
+  @Input() isViewOnly = false;
+
   abstract form: FormGroup;
   protected abstract formService: TFormService;
   protected abstract baseService: BasePropertiesService;
 
   ngOnInit(): void {
     this.initializeForm();
-    this.setupFormSubscriptions();
+
+    if (this.isViewOnly) {
+      this.form.disable();
+    } else {
+      this.setupFormSubscriptions();
+    }
+
     this.setupCanvasSubscriptions();
   }
 
@@ -38,6 +46,7 @@ export abstract class BasePropertiesComponent<TFormService> implements OnInit {
    * Handle alignment - delegates to base service
    */
   onAlign(type: AlignmentType): void {
+    if (this.isViewOnly) return;
     this.baseService.handleAlign(type);
   }
 
@@ -45,6 +54,7 @@ export abstract class BasePropertiesComponent<TFormService> implements OnInit {
    * Handle transformation - delegates to base service
    */
   onTransform(type: TransformType): void {
+    if (this.isViewOnly) return;
     this.baseService.handleTransform(type);
   }
 }

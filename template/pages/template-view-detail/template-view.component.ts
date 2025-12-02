@@ -1,20 +1,20 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
-import { UnsavedDataTracker } from '@gsf/admin/app/shared/base';
+import { ActivatedRoute, Router } from '@angular/router';
 import { PageTitleComponent } from '@gsf/admin/app/shared/components';
-import { FileModule } from '@gsf/admin/app/shared/enums';
 import { PageLayoutComponent } from '@gsf/admin/app/shared/layouts';
-import { WithCanDeactivate } from '@gsf/admin/app/shared/mixins';
-import { FileUploadService } from '@gsf/admin/app/shared/services/api/file-upload.service';
 import { ErrorMappingService } from '@gsf/admin/app/shared/services/error-mapping.service';
-import { ButtonDirective, ICON_ARROW_LEFT_OUTLINE, IconSvgComponent, ToastService } from '@gsf/ui';
-import { map, switchMap } from 'rxjs';
-import { TemplateEditorContainerComponent } from '../../components/layouts/template-editor-container.component';
+import {
+  ButtonDirective,
+  ICON_ARROW_LEFT_OUTLINE,
+  ICON_EDIT_2_OUTLINE,
+  IconSvgComponent
+} from '@gsf/ui';
 import { TemplateApiService } from '../../services/api/template-api.service';
 import { CanvasEventHandlerService } from '../../services/canvas/canvas-event-handler.service';
 import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
 import { CanvasInitializationService } from '../../services/canvas/canvas-initialization.service';
 import { CanvasStateService } from '../../services/canvas/canvas-state.service';
+import { CanvasZoomService } from '../../services/canvas/canvas-zoom.service';
 import { GeneralInfomationFormService } from '../../services/forms/general-information-form.service';
 import { FrameManagementService } from '../../services/frame/frame-management.service';
 import { FrameRatioService } from '../../services/frame/frame-ratio.service';
@@ -23,22 +23,18 @@ import { ObjectCreationService } from '../../services/objects/object-creation.se
 import { ObjectDeserializerService } from '../../services/objects/object-deserializer.service';
 import { ObjectPropertiesExtractorService } from '../../services/objects/object-properties-extractor.service';
 import { ObjectUpdateService } from '../../services/objects/object-update.service';
-import { TemplateUpdateRequest } from '../../types/template.type';
-import { SnapLineService } from '../../services/canvas/canvas-snap-line.service';
-import { CanvasZoomService } from '../../services/canvas/canvas-zoom.service';
 import { PanelToggleService } from '../../services/ui/panel-toggle.service';
-import { Location } from '@angular/common';
-import { CommandManagerService } from '../../services/command/command-manager.service';
-
-const CanDeactivateBase = WithCanDeactivate(UnsavedDataTracker);
+import { SnapLineService } from '../../services/canvas/canvas-snap-line.service';
+import { Destroyer } from '@gsf/admin/app/shared/base';
+import { TemplateViewEditorContainerComponent } from '../../components/view/template-view-editor-container.component';
 
 @Component({
-  selector: 'app-template-edit',
+  selector: 'app-template-view',
   standalone: true,
-  templateUrl: './template-edit.component.html',
+  templateUrl: './template-view.component.html',
   imports: [
     PageLayoutComponent,
-    TemplateEditorContainerComponent,
+    TemplateViewEditorContainerComponent,
     PageTitleComponent,
     ButtonDirective,
     IconSvgComponent
@@ -59,22 +55,20 @@ const CanDeactivateBase = WithCanDeactivate(UnsavedDataTracker);
     FrameRatioService,
     SnapLineService,
     CanvasZoomService,
-    PanelToggleService,
-    CommandManagerService
+    PanelToggleService
   ]
 })
-export class TemplateEditComponent extends CanDeactivateBase implements OnInit {
+export class TemplateViewComponent extends Destroyer implements OnInit {
   private route = inject(ActivatedRoute);
   private generalInfoFormService = inject(GeneralInfomationFormService);
   private templateApiService = inject(TemplateApiService);
   private canvasFacadeService = inject(CanvasFacadeService);
-  private toastService = inject(ToastService);
   private errorMappingService = inject(ErrorMappingService);
-  private fileUploadService = inject(FileUploadService);
   private frameRatioService = inject(FrameRatioService);
-  private location = inject(Location);
+  private router = inject(Router);
 
   ICON_LEFT_OUTLINE = ICON_ARROW_LEFT_OUTLINE;
+  ICON_EDIT_2_OUTLINE = ICON_EDIT_2_OUTLINE;
   templateId: number | null = null;
   isLoading = false;
 
@@ -85,56 +79,12 @@ export class TemplateEditComponent extends CanDeactivateBase implements OnInit {
     }
   }
 
-  async editTemplate() {
-    if (!this.templateId) return;
-
-    if (this.generalInfoFormService.invalidForm()) {
-      this.generalInfoFormService.markAllAsTouched();
-      return;
-    }
-
-    const jsonFile = this.canvasFacadeService.exportTemplateToJson();
-    const generalInfo = this.generalInfoFormService.getGeneralInfoFormValues();
-    const thumbnailFile = await this.canvasFacadeService.generateThumbnailFile();
-    const currentRatio = this.frameRatioService.getCurrentRatio();
-
-    const payload: TemplateUpdateRequest = {
-      templateId: this.templateId,
-      jsonFile,
-      ratio: currentRatio,
-      ...generalInfo
-    };
-
-    this.fileUploadService
-      .uploadFile(thumbnailFile, FileModule.BannerDesign)
-      .pipe(
-        map((res) => res.result),
-        switchMap((thumbnail) => {
-          return this.templateApiService.updateTemplate({
-            ...payload,
-            thumbnailFileId: thumbnail.id
-          });
-        })
-      )
-      .subscribe({
-        next: () => {
-          this.toastService.success({ message: 'Update template successfully' });
-
-          this.generalInfoFormService.markAsPristine();
-          this.goToPreviousPage();
-        },
-        error: (err) => {
-          this.errorMappingService.toToast(err);
-        }
-      });
+  goToList() {
+    this.router.navigateByUrl('/template');
   }
 
-  goToPreviousPage() {
-    this.location.back();
-  }
-
-  override getFormGroup() {
-    return this.generalInfoFormService.getForm();
+  goToEdit() {
+    this.router.navigate(['/template/edit', this.templateId]);
   }
 
   private loadTemplate(): void {
@@ -146,11 +96,15 @@ export class TemplateEditComponent extends CanDeactivateBase implements OnInit {
       next: (response) => {
         const template = response.result;
 
-        // Load general information into form
+        // Load general information into form (disabled mode)
         this.generalInfoFormService.patchForm({
           name: template.name,
           description: template.description
         });
+
+        // Disable form
+        const form = this.generalInfoFormService.getForm();
+        form.disable();
 
         this.frameRatioService.changeRatio(template.ratio);
 

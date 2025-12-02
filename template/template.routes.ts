@@ -24,6 +24,14 @@ export const TEMPLATE_Routes: Route[] = [
     canActivate: [routeGuard([PermissionEnum['Template.Edit']])]
   },
   {
+    path: ':id',
+    loadComponent: () =>
+      import('./pages/template-view-detail/template-view.component').then(
+        (m) => m.TemplateViewComponent
+      ),
+    canActivate: [routeGuard([PermissionEnum['Template.View']])]
+  },
+  {
     path: '',
     pathMatch: 'full',
     redirectTo: ''

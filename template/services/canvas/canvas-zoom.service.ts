@@ -135,6 +135,12 @@ export class CanvasZoomService {
 
     document.addEventListener('keydown', (event) => {
       if (event.code === 'Space' && !isSpacePressed) {
+        // Check if user is typing in any input field or editing canvas text
+        if (this.isUserTyping(canvas)) {
+          // Don't prevent default - allow space to be typed
+          return;
+        }
+
         isSpacePressed = true;
         event.preventDefault();
 
@@ -308,5 +314,43 @@ export class CanvasZoomService {
    */
   destroy(): void {
     this.zoomStateSubject.complete();
+  }
+
+  /**
+   * Check if user is currently typing in any input field or editing canvas text
+   */
+  private isUserTyping(canvas: Canvas): boolean {
+    // Check if editing canvas text object
+    const activeObject = canvas.getActiveObject();
+    const isEditingCanvasText =
+      activeObject &&
+      (activeObject.type === 'i-text' || activeObject.type === 'IText') &&
+      (activeObject as any).isEditing;
+
+    if (isEditingCanvasText) {
+      return true;
+    }
+
+    // Check if focused on any form input element
+    const activeElement = document.activeElement;
+
+    if (!activeElement) {
+      return false;
+    }
+
+    const tagName = activeElement.tagName.toLowerCase();
+    const isContentEditable = (activeElement as HTMLElement).isContentEditable;
+
+    // Check for input, textarea, or contenteditable elements
+    const isFormInput = tagName === 'input' || tagName === 'textarea' || isContentEditable;
+
+    // Additional check for input type (exclude buttons, checkboxes, etc)
+    if (tagName === 'input') {
+      const inputType = (activeElement as HTMLInputElement).type.toLowerCase();
+      const textInputTypes = ['text', 'password', 'email', 'search', 'tel', 'url', 'number'];
+      return textInputTypes.includes(inputType);
+    }
+
+    return isFormInput;
   }
 }

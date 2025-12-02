@@ -1,11 +1,12 @@
 import { Component, inject } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { ICON_DOUBLE_ARROW_RIGHT, IconSvgComponent } from '@gsf/ui';
+import { ICON_DOUBLE_ARROW_RIGHT, IconSvgComponent, InputDirective } from '@gsf/ui';
 import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
 import { TextPropertiesFormService } from '../../services/forms/text-properties-form.service';
 import { TextPropertyMapper } from '../../services/mappers/text-property-mapper.service';
 import { BasePropertiesService } from '../../services/properties/base-properties.service';
 import { TransformObjectService } from '../../services/transforms/transform-object.service';
+import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 import { TextProperties, TextPropertiesFormValues } from '../../types/canvas-object.type';
 import { ColorPickerComponent } from '../object-controls/common/color-picker.component';
 import { PositionPropertiesComponent } from '../object-controls/common/position-properties.component';
@@ -13,7 +14,6 @@ import { PropertySectionComponent } from '../object-controls/common/property-sec
 import { TextAlignmentControlComponent } from '../object-controls/text/text-alignment-control.component';
 import { TextFontPropertiesComponent } from '../object-controls/text/text-font-properties.component';
 import { BasePropertiesComponent } from './base-properties.components';
-import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 
 @Component({
   selector: 'app-text-properties',
@@ -53,6 +53,10 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
         <app-property-section label="Alignment">
           <app-text-alignment formControlName="textAlignment" />
         </app-property-section>
+
+        <app-property-section label="Text">
+          <input gsfInput type="text" formControlName="text" />
+        </app-property-section>
       </div>
     </form>
   `,
@@ -63,7 +67,8 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
     PositionPropertiesComponent,
     ColorPickerComponent,
     TextAlignmentControlComponent,
-    TextFontPropertiesComponent
+    TextFontPropertiesComponent,
+    InputDirective
   ],
   providers: [
     TextPropertiesFormService,

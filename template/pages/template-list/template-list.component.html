@@ -14,7 +14,7 @@
     <app-page-list-wrapper
       [showPagination]="true"
       [filterConfiguration]="filterConfiguration()"
-      searchPlaceholder="Search"
+      searchPlaceholder="Search Template"
       headerClasses="flex items-center gap-3 p-4 pb-5"
       searchFilterWapperClasses="!p-0"
       classSearchBox="w-72"
@@ -24,10 +24,12 @@
         @if (sourceList$ | async; as vmList) {
           <app-table
             #tableInstance
+            rowClassName="cursor-pointer"
             [data]="vmList || []"
             [columns]="tableColumns"
             [searchKey]="pageListWrapper.searchTerm"
             [countFilter]="pageListWrapper.countFilter"
+            (rowClick)="goToView($event)"
           >
             <ng-template appCellDef="thumbnailFile" let-row>
               @if (row?.thumbnailFile) {
@@ -55,11 +57,11 @@
             <ng-template appCellDef="action" let-row>
               <div class="flex items-center">
                 <ng-container *isGrantedByPermissions="[PermissionEnum['Template.Edit']]">
-                  <app-edit-button (edit)="goToEditTemplate(row.id)" />
+                  <app-edit-button (edit)="goToEditTemplate(row.id, $event)" />
                 </ng-container>
 
                 <ng-container *isGrantedByPermissions="[PermissionEnum['Template.Delete']]">
-                  <app-delete-button (delete)="deleteTemplate(row.id)" />
+                  <app-delete-button (delete)="deleteTemplate(row.id, $event)" />
                 </ng-container>
               </div>
             </ng-template>

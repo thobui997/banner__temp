@@ -58,19 +58,21 @@ import { ColorSketchModule } from 'ngx-color/sketch';
                 <div class="text-sm text-gray-700 font-mono">{{ preset }}</div>
               </button>
 
-              <button
-                type="button"
-                class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded text-icon-feature-icon-error-1"
-                (click)="removePreset(preset)"
-              >
-                <gsf-icon-svg [icon]="ICON_CLOSE" />
-              </button>
+              @if (!disabled) {
+                <button
+                  type="button"
+                  class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded text-icon-feature-icon-error-1"
+                  (click)="removePreset(preset)"
+                >
+                  <gsf-icon-svg [icon]="ICON_CLOSE" />
+                </button>
+              }
             </div>
           }
         </div>
       }
 
-      @if (presetsArray.length < 5) {
+      @if (presetsArray.length < 5 && !disabled) {
         <button
           gsfButton
           appColor="tertiary"
@@ -112,7 +114,7 @@ import { ColorSketchModule } from 'ngx-color/sketch';
             type="button"
             (click)="addColorToPresets()"
           >
-            ok
+            Add
           </button>
         </div>
       </div>
