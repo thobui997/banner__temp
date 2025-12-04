@@ -93,6 +93,12 @@ export class TemplateEditComponent extends CanDeactivateBase implements OnInit {
       return;
     }
 
+    // Check if there's at least one content block
+    if (!this.canvasFacadeService.hasContentBlocks()) {
+      this.toastService.error({ message: 'At least one content block is required.' });
+      return;
+    }
+
     const jsonFile = this.canvasFacadeService.exportTemplateToJson();
     const generalInfo = this.generalInfoFormService.getGeneralInfoFormValues();
     const thumbnailFile = await this.canvasFacadeService.generateThumbnailFile();
@@ -159,7 +165,7 @@ export class TemplateEditComponent extends CanDeactivateBase implements OnInit {
           const jsonContent = template.templateContent.jsonFile;
           this.canvasFacadeService.loadTemplateFromJson(jsonContent);
           this.isLoading = false;
-        }, 300);
+        }, 0);
       },
       error: (err) => {
         this.errorMappingService.toToast(err);

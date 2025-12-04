@@ -76,6 +76,7 @@ export class FramePropertiesComponent
   bgColorPresets = new Set<string>(['#FFFFFF']);
   layerName = '';
   private currentLayerId = '';
+  private syncingFromCanvas = false;
 
   override ngOnInit(): void {
     super.ngOnInit();
@@ -117,8 +118,10 @@ export class FramePropertiesComponent
   protected setupFormSubscriptions(): void {
     // Debounced changes
     this.formService.subscribeToChanges((formValues) => {
-      const canvasProps = this.mapper.toCanvasProperties(formValues);
-      this.updateObject(canvasProps);
+      if (!this.syncingFromCanvas) {
+        const canvasProps = this.mapper.toCanvasProperties(formValues);
+        this.updateObject(canvasProps);
+      }
     });
   }
 
@@ -126,7 +129,12 @@ export class FramePropertiesComponent
     this.baseService.subscribeToCanvasChanges<FrameProperties, FrameProperties>(
       this.form,
       VariableType.FRAME,
-      (canvasProps) => this.mapper.toFormValues(canvasProps),
+      (canvasProps) => {
+        this.syncingFromCanvas = true;
+        const formValues = this.mapper.toFormValues(canvasProps);
+        this.syncingFromCanvas = false;
+        return formValues;
+      },
       (canvasProps) => {
         if (canvasProps.customData?.bgColorPreset) {
           this.bgColorPresets = canvasProps.customData.bgColorPreset;

@@ -83,6 +83,12 @@ export class TemplateAddComponent extends CanDeactivateBase {
       return;
     }
 
+    // Check if there's at least one content block
+    if (!this.canvasFacadeService.hasContentBlocks()) {
+      this.toastService.error({ message: 'At least one content block is required.' });
+      return;
+    }
+
     const jsonFile = this.canvasFacadeService.exportTemplateToJson();
     const generalInfo = this.generalInfoFormService.getGeneralInfoFormValues();
     const thumbnailFile = await this.canvasFacadeService.generateThumbnailFile();

@@ -263,6 +263,9 @@ export class CanvasZoomService {
       vpt[5] = centerY - frameCenterY * clampedZoom;
     }
 
+    // Deselect active object to hide controls
+    canvas.discardActiveObject();
+
     this.updateZoomState({ zoom: clampedZoom });
     canvas.requestRenderAll();
   }

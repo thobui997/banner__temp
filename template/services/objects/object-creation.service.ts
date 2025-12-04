@@ -64,27 +64,19 @@ export class ObjectCreationService {
 
     const imgObj = await FabricImage.fromURL(src, { crossOrigin: 'anonymous' });
 
-    // Get constrained position within frame
-    const imgWidth = imgObj.width || 200;
-    const imgHeight = imgObj.height || 200;
-    const position = this.frameManagement.getConstrainedPosition(imgWidth, imgHeight);
-
     this.layerCounters.image++;
     const layerName = `Image ${this.layerCounters.image}`;
 
-    imgObj.set({
-      left: position.left,
-      top: position.top,
-      scaleX: 1,
-      scaleY: 1
-    });
-
+    // Set custom metadata
     imgObj.set('customMetadata', {
       id: this.generateId(),
       createdAt: Date.now(),
       type: VariableType.IMAGE,
       customName: layerName
     });
+
+    // Fit image to frame
+    this.fitImageToFrame(imgObj);
 
     // Apply frame clipping
     this.frameManagement.applyFrameClipping(imgObj);
@@ -206,6 +198,65 @@ export class ObjectCreationService {
         }
       }
     });
+  }
+
+  /**
+   * Fit image to frame while maintaining aspect ratio
+   * Centers the image within the frame
+   */
+  private fitImageToFrame(imageObj: FabricImage): void {
+    const frameBounds = this.getFrameBounds();
+
+    if (!frameBounds) {
+      // No frame, use default position
+      imageObj.set({
+        left: 100,
+        top: 100,
+        scaleX: 1,
+        scaleY: 1
+      });
+      imageObj.setCoords();
+      return;
+    }
+
+    const originalWidth = imageObj.width || 1;
+    const originalHeight = imageObj.height || 1;
+
+    // Calculate scale to fit image within frame while maintaining aspect ratio
+    const scaleX = frameBounds.width / originalWidth;
+    const scaleY = frameBounds.height / originalHeight;
+    const scale = Math.min(scaleX, scaleY);
+
+    // Calculate centered position within frame
+    const scaledWidth = originalWidth * scale;
+    const scaledHeight = originalHeight * scale;
+    const left = frameBounds.left + (frameBounds.width - scaledWidth) / 2;
+    const top = frameBounds.top + (frameBounds.height - scaledHeight) / 2;
+
+    // Apply new scale and position
+    imageObj.set({
+      scaleX: scale,
+      scaleY: scale,
+      left: left,
+      top: top
+    });
+
+    imageObj.setCoords();
+  }
+
+  /**
+   * Get frame bounds helper
+   */
+  private getFrameBounds(): { left: number; top: number; width: number; height: number } | null {
+    const frameObject = this.stateService.getFrameObject();
+    if (!frameObject) return null;
+
+    return {
+      left: frameObject.left || 0,
+      top: frameObject.top || 0,
+      width: (frameObject.width || 0) * (frameObject.scaleX || 1),
+      height: (frameObject.height || 0) * (frameObject.scaleY || 1)
+    };
   }
 
   private generateId(): string {

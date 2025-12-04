@@ -111,16 +111,45 @@ export class TemplateViewComponent extends Destroyer implements OnInit {
         this.frameRatioService.changeRatio(template.ratio);
 
         // Load JSON into canvas (delay to ensure canvas is initialized)
-        setTimeout(() => {
+        setTimeout(async () => {
           const jsonContent = template.templateContent.jsonFile;
-          this.canvasFacadeService.loadTemplateFromJson(jsonContent);
+          await this.canvasFacadeService.loadTemplateFromJson(jsonContent);
+          this.makeCanvasReadOnly();
           this.isLoading = false;
-        }, 300);
+        }, 0);
       },
       error: (err) => {
         this.errorMappingService.toToast(err);
         this.isLoading = false;
       }
     });
+  }
+
+  private makeCanvasReadOnly(): void {
+    const canvas = this.canvasFacadeService.getCanvas();
+    if (!canvas) return;
+
+    // Disable selection
+    canvas.selection = false;
+    canvas.skipTargetFind = true;
+
+    // Make all objects non-selectable and non-interactive
+    canvas.forEachObject((obj) => {
+      obj.selectable = false;
+      obj.evented = false;
+      obj.hasControls = false;
+      obj.hasBorders = false;
+      obj.lockMovementX = true;
+      obj.lockMovementY = true;
+      obj.lockRotation = true;
+      obj.lockScalingX = true;
+      obj.lockScalingY = true;
+    });
+
+    // Set cursor to default
+    canvas.defaultCursor = 'default';
+    canvas.hoverCursor = 'default';
+
+    canvas.requestRenderAll();
   }
 }

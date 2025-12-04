@@ -132,6 +132,7 @@ export class ButtonPropertiesComponent
   bgColorPresets = new Set<string>(['#005AA9']);
   layerName = '';
   private currentLayerId = '';
+  private syncingFromCanvas = false;
 
   override ngOnInit(): void {
     super.ngOnInit();
@@ -179,8 +180,10 @@ export class ButtonPropertiesComponent
   protected setupFormSubscriptions(): void {
     // Debounced changes
     this.formService.subscribeToChanges((formValues) => {
-      const canvasProps = this.mapper.toCanvasProperties(formValues);
-      this.updateObject(canvasProps);
+      if (!this.syncingFromCanvas) {
+        const canvasProps = this.mapper.toCanvasProperties(formValues);
+        this.updateObject(canvasProps);
+      }
     });
   }
 
@@ -188,7 +191,12 @@ export class ButtonPropertiesComponent
     this.baseService.subscribeToCanvasChanges<ButtonProperties, ButtonPropertiesFormValues>(
       this.form,
       VariableType.BUTTON,
-      (canvasProps) => this.mapper.toFormValues(canvasProps),
+      (canvasProps) => {
+        this.syncingFromCanvas = true;
+        const formValues = this.mapper.toFormValues(canvasProps);
+        this.syncingFromCanvas = false;
+        return formValues;
+      },
       (canvasProps) => {
         if (canvasProps.customData?.colorPreset) {
           this.textColorPresets = canvasProps.customData.colorPreset;

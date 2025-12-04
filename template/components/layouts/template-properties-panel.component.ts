@@ -31,8 +31,8 @@ import { Layer } from '../../types/layer.type';
   selector: 'app-template-properties-panel',
   standalone: true,
   template: `
-    <div class="w-[320px] h-full bg-white border border-stroke-primary-2">
-      <div class="flex flex-col h-full">
+    <div class="w-[320px] h-full bg-white border border-stroke-primary-2 overflow-hidden">
+      <div class="flex flex-col h-full overflow-y-auto">
         <!-- header -->
         <div class="flex items-center justify-end px-6 py-3">
           <button
@@ -85,13 +85,13 @@ import { Layer } from '../../types/layer.type';
         </div>
 
         <!-- layer section -->
-        <div class="flex-1 flex flex-col overflow-hidden">
+        <div class="flex-1 flex flex-col">
           <div class="border-t border-b border-stroke-primary-2">
             <div class="px-6 py-[14px] font-semibold text-text-primary-2">Layers</div>
           </div>
 
           <div
-            class="flex-1 flex-shrink-0 flex flex-col overflow-y-auto"
+            class="flex-shrink-0 flex flex-col"
             cdkDropList
             (cdkDropListDropped)="onDrop($event)"
           >

@@ -96,6 +96,7 @@ export class ImagePropertiesComponent
   form!: FormGroup;
   layerName = '';
   private currentLayerId = '';
+  private syncingFromCanvas = false;
 
   override ngOnInit(): void {
     super.ngOnInit();
@@ -131,7 +132,9 @@ export class ImagePropertiesComponent
   protected setupFormSubscriptions(): void {
     // Debounced changes for most properties
     this.formService.subscribeToChanges((formValues) => {
-      this.updateCanvas(formValues);
+      if (!this.syncingFromCanvas) {
+        this.updateCanvas(formValues);
+      }
     });
   }
 
@@ -139,7 +142,12 @@ export class ImagePropertiesComponent
     this.baseService.subscribeToCanvasChanges<ImageProperties, ImageProperties>(
       this.form,
       VariableType.IMAGE,
-      (canvasProps) => this.mapper.toFormValues(canvasProps)
+      (canvasProps) => {
+        this.syncingFromCanvas = true; 
+        const formValues = this.mapper.toFormValues(canvasProps);
+        this.syncingFromCanvas = false;
+        return formValues;
+      }
     );
   }
 

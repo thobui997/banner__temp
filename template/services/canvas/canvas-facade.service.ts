@@ -18,6 +18,7 @@ import { CanvasEventHandlerService } from './canvas-event-handler.service';
 import { CanvasInitializationService } from './canvas-initialization.service';
 import { CanvasStateService } from './canvas-state.service';
 import { CanvasZoomService, ZoomState } from './canvas-zoom.service';
+import { VariableType } from '../../consts/variables.const';
 
 @Injectable()
 export class CanvasFacadeService {
@@ -293,5 +294,20 @@ export class CanvasFacadeService {
 
   resizeCanvas(width: number, height: number): void {
     this.stateService.maintainViewportOnResize(width, height);
+  }
+
+  hasContentBlocks(): boolean {
+    const canvas = this.stateService.getCanvas();
+
+    if (!canvas) return false;
+
+    const objects = canvas.getObjects();
+
+    // Count non-frame objects
+    const contentBlocks = objects.filter(
+      (obj) => obj.get('customMetadata').type !== VariableType.FRAME
+    );
+
+    return contentBlocks.length > 0;
   }
 }

@@ -8,6 +8,7 @@ import { CanvasEventHandlerService } from '../canvas/canvas-event-handler.servic
 import { CanvasStateService } from '../canvas/canvas-state.service';
 import { CommandManagerService } from '../command/command-manager.service';
 import { TransformObjectService } from '../transforms/transform-object.service';
+import { distinctUntilChanged } from 'rxjs';
 
 /**
  * Base service providing common functionality for all property components
@@ -74,17 +75,23 @@ export class BasePropertiesService {
     onPropertiesReceived?: (props: TCanvas) => void
   ): void {
     this.canvasState.selectedObjectProperties$
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        distinctUntilChanged((prev, curr) => {
+          return JSON.stringify(prev) === JSON.stringify(curr);
+        })
+      )
       .subscribe((props) => {
         if (!props || props.type !== objectType) return;
 
         const formValues = mapToForm(props as TCanvas);
 
-        // Patch form without emitting to prevent circular updates
         Object.keys(formValues as object).forEach((key) => {
           const control = form.get(key);
-          if (control) {
-            control.setValue((formValues as any)[key], { emitEvent: false });
+          const newValue = (formValues as any)[key];
+
+          if (control && JSON.stringify(control.value) !== JSON.stringify(newValue)) {
+            control.setValue(newValue, { emitEvent: false });
           }
         });
 

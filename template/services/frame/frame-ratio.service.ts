@@ -109,7 +109,8 @@ export class FrameRatioService {
 
       this.frameManagement.updateFrameBounds(frame);
       this.frameManagement.applyClippingToAllObjects();
-      this.currentRatioSubject.next(newRatioValue);
+
+      this.syncRatioFromFrame();
     });
 
     this.commandManager.execute(command);
@@ -148,5 +149,23 @@ export class FrameRatioService {
   getCurrentAspectRatio(): number {
     const ratioOption = this.getRatioOption(this.currentRatioSubject.value);
     return ratioOption?.aspectRatio ?? 1 / 2;
+  }
+
+  private syncRatioFromFrame(): void {
+    const frame = this.canvasState.getFrameObject();
+    if (!frame) return;
+
+    const width = (frame.width || 0) * (frame.scaleX || 1);
+    const height = (frame.height || 0) * (frame.scaleY || 1);
+    const aspectRatio = width / height;
+
+    // Find closest matching ratio
+    const closestRatio = this.ratioOptions.reduce((prev, curr) => {
+      const prevDiff = Math.abs(prev.aspectRatio - aspectRatio);
+      const currDiff = Math.abs(curr.aspectRatio - aspectRatio);
+      return currDiff < prevDiff ? curr : prev;
+    });
+
+    this.currentRatioSubject.next(closestRatio.value);
   }
 }

@@ -55,45 +55,12 @@ export class TemplateViewCanvasWorkspaceComponent implements AfterViewInit, OnDe
       }, 100);
     }
 
-    // Make canvas read-only after initialization
-    setTimeout(() => {
-      this.makeCanvasReadOnly();
-    }, 500);
-
     this.setupResizeObserver();
   }
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
     this.canvasService.disposeCanvas();
-  }
-
-  private makeCanvasReadOnly(): void {
-    const canvas = this.canvasStateService.getCanvas();
-    if (!canvas) return;
-
-    // Disable selection
-    canvas.selection = false;
-    canvas.skipTargetFind = true;
-
-    // Make all objects non-selectable and non-interactive
-    canvas.forEachObject((obj) => {
-      obj.selectable = false;
-      obj.evented = false;
-      obj.hasControls = false;
-      obj.hasBorders = false;
-      obj.lockMovementX = true;
-      obj.lockMovementY = true;
-      obj.lockRotation = true;
-      obj.lockScalingX = true;
-      obj.lockScalingY = true;
-    });
-
-    // Set cursor to default
-    canvas.defaultCursor = 'default';
-    canvas.hoverCursor = 'default';
-
-    canvas.requestRenderAll();
   }
 
   private setupResizeObserver(): void {

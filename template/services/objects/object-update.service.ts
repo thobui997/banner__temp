@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { FabricImage, FabricObject, Group, IText, Rect, Textbox } from 'fabric';
+import { UpdateImageSourceCommand } from '../../commands/image-source.command';
 import { UpdateMultiObjectPropsCommand } from '../../commands/update-multi-object-props.command';
 import { UpdatePropertiesCommand } from '../../commands/update-object.command';
 import { DEFAULT_IMAGE_URL, VariableType } from '../../consts/variables.const';
@@ -14,7 +15,6 @@ import { CanvasEventHandlerService } from '../canvas/canvas-event-handler.servic
 import { CanvasStateService } from '../canvas/canvas-state.service';
 import { CommandManagerService } from '../command/command-manager.service';
 import { ObjectPropertiesExtractorService } from './object-properties-extractor.service';
-import { UpdateImageSourceCommand } from '../../commands/image-source.command';
 
 @Injectable()
 export class ObjectUpdateService {
@@ -56,11 +56,7 @@ export class ObjectUpdateService {
     }
   }
 
-
-  private updateImageProperties(
-    imageObj: FabricImage,
-    properties: Partial<ImageProperties>
-  ): void {
+  private updateImageProperties(imageObj: FabricImage, properties: Partial<ImageProperties>): void {
     const canvas = this.stateService.getCanvas();
     const newProperties: Record<string, any> = {};
 
@@ -130,13 +126,12 @@ export class ObjectUpdateService {
         this.commandManagerService.execute(propsCommand);
       }
 
-      // Then execute image source command
       const sourceCommand = new UpdateImageSourceCommand(canvas, imageObj, newSrc, attachments, {
         syncForm: () => {
           this.canvasEventHandlerService.emitObjectProperties(imageObj);
-        },
-        fitImageToFrame: (img) => this.fitImageToFrame(img)
+        }
       });
+
       this.commandManagerService.execute(sourceCommand);
 
       return;
@@ -401,49 +396,5 @@ export class ObjectUpdateService {
       this.canvasEventHandlerService.emitObjectProperties(activeObject);
     });
     this.commandManagerService.execute(command);
-  }
-
-  private fitImageToFrame(imageObj: FabricImage): void {
-    
-    const frameBounds = this.getFrameBounds();
-    if (!frameBounds) {
-      return;
-    }
-
-    const originalWidth = imageObj.width || 1;
-    const originalHeight = imageObj.height || 1;
-
-    // Calculate scale to fit image within frame while maintaining aspect ratio
-    const scaleX = frameBounds.width / originalWidth;
-    const scaleY = frameBounds.height / originalHeight;
-    const scale = Math.min(scaleX, scaleY);
-
-    // Calculate centered position within frame
-    const scaledWidth = originalWidth * scale;
-    const scaledHeight = originalHeight * scale;
-    const left = frameBounds.left + (frameBounds.width - scaledWidth) / 2;
-    const top = frameBounds.top + (frameBounds.height - scaledHeight) / 2;
-
-    // Apply new scale and position
-    imageObj.set({
-      scaleX: scale,
-      scaleY: scale,
-      left: left,
-      top: top
-    });
-
-    imageObj.setCoords();
-  }
-
-  private getFrameBounds(): { left: number; top: number; width: number; height: number } | null {
-    const frameObject = this.stateService.getFrameObject();
-    if (!frameObject) return null;
-
-    return {
-      left: frameObject.left || 0,
-      top: frameObject.top || 0,
-      width: (frameObject.width || 0) * (frameObject.scaleX || 1),
-      height: (frameObject.height || 0) * (frameObject.scaleY || 1)
-    };
   }
 }

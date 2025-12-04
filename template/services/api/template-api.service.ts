@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import {
   TemplateRequest,
@@ -10,6 +10,7 @@ import {
   BaseResponse,
   BaseResponseWithoutPaging
 } from '@gsf/admin/app/shared/types';
+import { SHOW_LOADING } from '@gsf/app-config';
 
 @Injectable()
 export class TemplateApiService {
@@ -17,24 +18,34 @@ export class TemplateApiService {
   private readonly baseUrl = 'api/v1/manager/template';
 
   createNewTemplate(payload: TemplateRequest) {
-    return this.httpClient.post(`${this.baseUrl}/create`, payload);
+    return this.httpClient.post(`${this.baseUrl}/create`, payload, {
+      context: new HttpContext().set(SHOW_LOADING, true)
+    });
   }
 
   getTemplates(payload: AdvancedSearchParams) {
     return this.httpClient.post<BaseResponse<TemplateResponse[]>>(
       `${this.baseUrl}/search`,
-      payload
+      payload,
+      {
+        context: new HttpContext().set(SHOW_LOADING, true)
+      }
     );
   }
 
   getTemplateById(id: number) {
     return this.httpClient.get<BaseResponseWithoutPaging<TemplateResponse>>(
-      `${this.baseUrl}/${id}`
+      `${this.baseUrl}/${id}`,
+      {
+        context: new HttpContext().set(SHOW_LOADING, true)
+      }
     );
   }
 
   updateTemplate(payload: TemplateUpdateRequest) {
-    return this.httpClient.post(`${this.baseUrl}/update`, payload);
+    return this.httpClient.post(`${this.baseUrl}/update`, payload, {
+      context: new HttpContext().set(SHOW_LOADING, true)
+    });
   }
 
   deleteTemplateById(id: number) {

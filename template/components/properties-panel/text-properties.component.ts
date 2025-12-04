@@ -154,7 +154,12 @@ export class TextPropertiesComponent
     this.baseService.subscribeToCanvasChanges<TextProperties, TextPropertiesFormValues>(
       this.form,
       'text',
-      (canvasProps) => this.mapper.toFormValues(canvasProps),
+      (canvasProps) => {
+        this.syncingFromCanvas = true;
+        const formValues = this.mapper.toFormValues(canvasProps);
+        this.syncingFromCanvas = false;
+        return formValues;
+      },
       (canvasProps) => {
         // Handle custom data (color presets)
         if (canvasProps.customData?.colorPreset) {
