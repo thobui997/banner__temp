@@ -11,7 +11,6 @@ import { FrameManagementService } from '../frame/frame-management.service';
 import { UpdateFrameCommand } from '../../commands/update-frame.command';
 import { SnapLineService } from './canvas-snap-line.service';
 
-
 @Injectable()
 export class CanvasEventHandlerService {
   private stateService = inject(CanvasStateService);
@@ -24,31 +23,31 @@ export class CanvasEventHandlerService {
   private lastStateBeforeTransform = new WeakMap<FabricObject, any>();
   private snapEnabled = true;
 
+  // Store frame's last position to calculate delta when moving
+  private frameLastPosition = { left: 0, top: 0 };
+
+  private eventHandlers = new Map<string, any>();
+
   setupEventListeners(canvas: Canvas): void {
-    // Selection events
-    canvas.on('selection:created', (e) => {
+    const selectionCreatedHandler = (e: any) => {
       this.handleSelectionChange(e.selected?.[0] || null);
-    });
+    };
 
-    canvas.on('selection:updated', (e) => {
+    const selectionUpdatedHandler = (e: any) => {
       this.handleSelectionChange(e.selected?.[0] || null);
-    });
+    };
 
-    canvas.on('selection:cleared', () => {
+    const selectionClearedHandler = () => {
       this.handleSelectionChange(null);
-    });
+    };
 
-    // Object modification events
-    canvas.on('object:modified', (e) => {
+    const objectModifiedHandler = (e: ModifiedEvent<TPointerEvent>) => {
       if (!e.target) return;
       this.handleObjectModified(e);
-
-      // Clear snap lines after modification
       this.snapLineService.clearSnapLines();
-    });
+    };
 
-    // Real-time constraint events with snap lines
-    canvas.on('object:moving', (e) => {
+    const objectMovingHandler = (e: any) => {
       const obj = e.target;
       if (!obj) return;
 
@@ -59,30 +58,35 @@ export class CanvasEventHandlerService {
         });
       }
 
-      // Apply snap lines if enabled and not moving frame
-      if (this.snapEnabled && !this.isFrame(obj)) {
-        const snapResult = this.snapLineService.calculateSnap(obj, obj.left || 0, obj.top || 0);
+      // Handle frame movement - move all objects along with frame
+      if (this.isFrame(obj)) {
+        this.moveObjectsWithFrame(obj);
+      } else {
+        // Apply snap lines if enabled and not moving frame
+        if (this.snapEnabled) {
+          const snapResult = this.snapLineService.calculateSnap(obj, obj.left || 0, obj.top || 0);
 
-        if (snapResult.snapped) {
-          obj.set({
-            left: snapResult.snapPosition.left,
-            top: snapResult.snapPosition.top
-          });
-          obj.setCoords();
-          this.snapLineService.showSnapLines(snapResult.snapLines);
+          if (snapResult.snapped) {
+            obj.set({
+              left: snapResult.snapPosition.left,
+              top: snapResult.snapPosition.top
+            });
+            obj.setCoords();
+            this.snapLineService.showSnapLines(snapResult.snapLines);
+          } else {
+            this.snapLineService.clearSnapLines();
+          }
+
+          this.frameManagement.applyFrameClipping(obj);
         } else {
-          this.snapLineService.clearSnapLines();
+          this.frameManagement.applyFrameClipping(obj);
         }
-
-        this.frameManagement.applyFrameClipping(obj);
-      } else if (!this.isFrame(obj)) {
-        this.frameManagement.applyFrameClipping(obj);
       }
 
       this.emitObjectProperties(obj);
-    });
+    };
 
-    canvas.on('object:scaling', (e) => {
+    const objectScalingHandler = (e: any) => {
       const obj = e.target;
       if (!obj) return;
 
@@ -96,15 +100,16 @@ export class CanvasEventHandlerService {
       if (!this.isFrame(obj)) {
         this.frameManagement.applyFrameClipping(obj);
       } else {
-        // If scaling frame, update frame bounds and reapply clipping to all objects
+        // Enforce aspect ratio for frame during scaling
+        this.frameManagement.enforceAspectRatio(obj);
         this.frameManagement.updateFrameBounds(obj);
         this.frameManagement.applyClippingToAllObjects();
       }
 
       this.emitObjectProperties(obj);
-    });
+    };
 
-    canvas.on('object:rotating', (e) => {
+    const objectRotatingHandler = (e: any) => {
       const obj = e.target;
       if (!obj) return;
 
@@ -119,15 +124,13 @@ export class CanvasEventHandlerService {
       }
 
       this.emitObjectProperties(obj);
-    });
+    };
 
-    // Clear snap lines when mouse is released
-    canvas.on('mouse:up', () => {
+    const mouseUpHandler = () => {
       this.snapLineService.clearSnapLines();
-    });
+    };
 
-    // Layer sync events
-    canvas.on('object:added', (e) => {
+    const objectAddedHandler = (e: any) => {
       const obj = e.target;
 
       // Apply frame clipping to newly added objects
@@ -135,16 +138,48 @@ export class CanvasEventHandlerService {
         this.frameManagement.applyFrameClipping(obj);
       }
 
-      setTimeout(() => {
-        this.layerManagementService.syncLayers();
-      }, 50);
-    });
+      // Store initial frame position when frame is added
+      if (obj && this.isFrame(obj)) {
+        this.frameLastPosition = {
+          left: obj.left || 0,
+          top: obj.top || 0
+        };
+      }
 
-    canvas.on('object:removed', (e) => {
       setTimeout(() => {
         this.layerManagementService.syncLayers();
       }, 50);
-    });
+    };
+
+    const objectRemovedHandler = (e: any) => {
+      setTimeout(() => {
+        this.layerManagementService.syncLayers();
+      }, 50);
+    };
+
+    // Store handlers in map
+    this.eventHandlers.set('selection:created', selectionCreatedHandler);
+    this.eventHandlers.set('selection:updated', selectionUpdatedHandler);
+    this.eventHandlers.set('selection:cleared', selectionClearedHandler);
+    this.eventHandlers.set('object:modified', objectModifiedHandler);
+    this.eventHandlers.set('object:moving', objectMovingHandler);
+    this.eventHandlers.set('object:scaling', objectScalingHandler);
+    this.eventHandlers.set('object:rotating', objectRotatingHandler);
+    this.eventHandlers.set('mouse:up', mouseUpHandler);
+    this.eventHandlers.set('object:added', objectAddedHandler);
+    this.eventHandlers.set('object:removed', objectRemovedHandler);
+
+    // Register event listeners
+    canvas.on('selection:created', selectionCreatedHandler);
+    canvas.on('selection:updated', selectionUpdatedHandler);
+    canvas.on('selection:cleared', selectionClearedHandler);
+    canvas.on('object:modified', objectModifiedHandler);
+    canvas.on('object:moving', objectMovingHandler);
+    canvas.on('object:scaling', objectScalingHandler);
+    canvas.on('object:rotating', objectRotatingHandler);
+    canvas.on('mouse:up', mouseUpHandler);
+    canvas.on('object:added', objectAddedHandler);
+    canvas.on('object:removed', objectRemovedHandler);
 
     // Initialize layers
     this.layerManagementService.syncLayers();
@@ -185,6 +220,22 @@ export class CanvasEventHandlerService {
     return this.snapEnabled;
   }
 
+  disableAllEvents(): void {
+    const canvas = this.stateService.getCanvas();
+    if (!canvas) return;
+
+    // Remove all event listeners using stored handlers
+    this.eventHandlers.forEach((handler, eventName) => {
+      canvas.off(eventName as any, handler as any);
+    });
+
+    // Clear snap lines
+    this.snapLineService.clearSnapLines();
+
+    // Clear the handlers map
+    this.eventHandlers.clear();
+  }
+
   private handleSelectionChange(obj: FabricObject | null): void {
     this.stateService.updateSelectedObject(obj);
 
@@ -192,6 +243,14 @@ export class CanvasEventHandlerService {
     this.layerManagementService.updateSelectedLayerFromObject(obj);
 
     if (obj) {
+      // Store current frame position when selecting frame
+      if (this.isFrame(obj)) {
+        this.frameLastPosition = {
+          left: obj.left || 0,
+          top: obj.top || 0
+        };
+      }
+
       this.emitObjectProperties(obj);
     } else {
       this.stateService.updateSelectedObjectProperties(null);
@@ -285,9 +344,55 @@ export class CanvasEventHandlerService {
         this.frameManagement.updateFrameBounds(frame);
         this.frameManagement.applyClippingToAllObjects();
         this.emitObjectProperties(frame);
+
+        // Update frame last position after modification
+        this.frameLastPosition = {
+          left: frame.left || 0,
+          top: frame.top || 0
+        };
       }
     );
 
     this.commandManager.execute(command);
+  }
+
+  private moveObjectsWithFrame(frame: FabricObject): void {
+    const canvas = this.stateService.getCanvas();
+    if (!canvas) return;
+
+    const currentLeft = frame.left || 0;
+    const currentTop = frame.top || 0;
+
+    // Calculate delta movement
+    const deltaX = currentLeft - this.frameLastPosition.left;
+    const deltaY = currentTop - this.frameLastPosition.top;
+
+    // Update last position
+    this.frameLastPosition = { left: currentLeft, top: currentTop };
+
+    // If no movement, skip
+    if (deltaX === 0 && deltaY === 0) return;
+
+    // Move all non-frame objects
+    canvas.getObjects().forEach((obj) => {
+      if (obj === frame) return;
+
+      const objLeft = obj.left || 0;
+      const objTop = obj.top || 0;
+
+      obj.set({
+        left: objLeft + deltaX,
+        top: objTop + deltaY
+      });
+      obj.setCoords();
+
+      // Update clipPath position as well
+      this.frameManagement.applyFrameClipping(obj);
+    });
+
+    // Update frame bounds
+    this.frameManagement.updateFrameBounds(frame);
+
+    canvas.requestRenderAll();
   }
 }

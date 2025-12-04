@@ -69,6 +69,7 @@ export class CanvasFacadeService {
   }
 
   disposeCanvas(): void {
+    this.eventService.disableAllEvents();
     this.initService.disposeCanvas();
   }
 
@@ -215,25 +216,48 @@ export class CanvasFacadeService {
       }
 
       try {
-        const frameBounds = frame.getBoundingRect();
-        const scale = size / frameBounds.width;
+        // Save current viewport transform
+        const currentVPT = canvas.viewportTransform
+          ? ([...canvas.viewportTransform] as [number, number, number, number, number, number])
+          : ([1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number]);
+
+        // Reset viewport transform to identity matrix (no zoom, no pan)
+        canvas.viewportTransform = [1, 0, 0, 1, 0, 0];
+        canvas.renderAll();
+
+        // Get frame bounds in absolute coordinates
+        const frameLeft = frame.left || 0;
+        const frameTop = frame.top || 0;
+        const frameWidth = (frame.width || 0) * (frame.scaleX || 1);
+        const frameHeight = (frame.height || 0) * (frame.scaleY || 1);
+
+        // Calculate scale to fit thumbnail size
+        const scale = size / Math.max(frameWidth, frameHeight);
 
         const dataURL = canvas.toDataURL({
-          left: frameBounds.left,
-          top: frameBounds.top,
-          width: frameBounds.width,
-          height: frameBounds.height,
+          left: frameLeft,
+          top: frameTop,
+          width: frameWidth,
+          height: frameHeight,
           multiplier: scale,
           format: 'jpeg',
-          quality: 1,
+          quality: 0.9,
           enableRetinaScaling: false
         });
+
+        // Restore viewport transform
+        canvas.viewportTransform = currentVPT;
+        canvas.renderAll();
 
         fetch(dataURL)
           .then((res) => res.blob())
           .then((blob) => resolve(blob))
           .catch((err) => reject(err));
       } catch (error) {
+        // Make sure to restore viewport even if error occurs
+        if (canvas.viewportTransform) {
+          canvas.renderAll();
+        }
         reject(error);
       }
     });
@@ -262,18 +286,12 @@ export class CanvasFacadeService {
     // Sync layers
     this.syncLayers();
 
+    this.creationService.syncCountersFromLayers();
+
     canvas.requestRenderAll();
   }
 
   resizeCanvas(width: number, height: number): void {
-    const canvas = this.stateService.getCanvas();
-    if (!canvas) return;
-
-    canvas.setDimensions({
-      width: width,
-      height: height
-    });
-
-    canvas.renderAll();
+    this.stateService.maintainViewportOnResize(width, height);
   }
 }

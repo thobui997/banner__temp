@@ -13,9 +13,20 @@ export class LayerManagementService {
 
   private layersSubject = new BehaviorSubject<Layer[]>([]);
   private selectedLayerIdSubject = new BehaviorSubject<string | null>(null);
+  private layerNameChangedSubject = new BehaviorSubject<{ layerId: string; name: string } | null>(
+    null
+  );
 
   readonly layers$: Observable<Layer[]> = this.layersSubject.asObservable();
   readonly selectedLayerId$: Observable<string | null> = this.selectedLayerIdSubject.asObservable();
+  readonly layerNameChanged$: Observable<{ layerId: string; name: string } | null> =
+    this.layerNameChangedSubject.asObservable();
+
+  private layerCounters = {
+    text: 0,
+    image: 0,
+    button: 0
+  };
 
   syncLayers(): void {
     const canvas = this.stateService.getCanvas();
@@ -32,7 +43,7 @@ export class LayerManagementService {
       if (metadata && metadata.id) {
         const layer: Layer = {
           id: metadata.id,
-          name: this.generateLayerName(obj, type),
+          name: metadata.customName || this.generateLayerName(obj, type),
           type: type,
           visible: obj.visible !== false,
           locked: obj.lockMovementX === true,
@@ -54,6 +65,102 @@ export class LayerManagementService {
     }
 
     this.layersSubject.next(layers);
+  }
+
+  /**
+   * Rename layer
+   */
+  renameLayer(layerId: string, newName: string): void {
+    const layer = this.findLayerById(layerId);
+    if (!layer || !layer.fabricObject) return;
+
+    // Update custom metadata
+    const metadata = layer.fabricObject.get('customMetadata') as any;
+    if (metadata) {
+      metadata.customName = newName;
+      layer.fabricObject.set('customMetadata', metadata);
+    }
+
+    // Update layer name in state
+    layer.name = newName;
+    this.layersSubject.next([...this.layersSubject.value]);
+
+    // Emit layer name changed event
+    this.layerNameChangedSubject.next({ layerId, name: newName });
+  }
+
+  /**
+   * Generate default layer name based on type
+   */
+  private generateLayerName(obj: FabricObject, type: string): string {
+    const metadata = obj.get('customMetadata') as any;
+
+    if (metadata?.customName) {
+      return metadata.customName;
+    }
+
+    switch (type) {
+      case VariableType.TEXT: {
+        this.layerCounters.text++;
+        const name = `Text ${this.layerCounters.text}`;
+        if (metadata) {
+          metadata.customName = name;
+          obj.set('customMetadata', metadata);
+        }
+        return name;
+      }
+
+      case VariableType.IMAGE: {
+        this.layerCounters.image++;
+        const imageName = `Image ${this.layerCounters.image}`;
+        if (metadata) {
+          metadata.customName = imageName;
+          obj.set('customMetadata', metadata);
+        }
+        return imageName;
+      }
+
+      case VariableType.BUTTON: {
+        this.layerCounters.button++;
+        const buttonName = `Button ${this.layerCounters.button}`;
+        if (metadata) {
+          metadata.customName = buttonName;
+          obj.set('customMetadata', metadata);
+        }
+        return buttonName;
+      }
+
+      case VariableType.FRAME: {
+        const frameName = 'Background';
+        if (metadata) {
+          metadata.customName = frameName;
+          obj.set('customMetadata', metadata);
+        }
+        return frameName;
+      }
+
+      default:
+        return 'Shape';
+    }
+  }
+
+  /**
+   * Reset layer counters (useful when loading template)
+   */
+  resetCounters(): void {
+    this.layerCounters = {
+      text: 0,
+      image: 0,
+      button: 0
+    };
+  }
+
+  /**
+   * Get layer name by id
+   */
+  getLayerName(layerId: string): string {
+    const layer = this.findLayerById(layerId);
+    return layer?.name || '';
   }
 
   reorderLayers(previousIndex: number, currentIndex: number): void {
@@ -81,8 +188,7 @@ export class LayerManagementService {
     }
 
     const regularLayerCount = layers.length - (frameIndex !== -1 ? 1 : 0);
-
-    const targetFabricIndex = regularLayerCount - currentIndex - 1; 
+    const targetFabricIndex = regularLayerCount - currentIndex - 1;
 
     const currentFabricObjects = canvas
       .getObjects()
@@ -97,12 +203,10 @@ export class LayerManagementService {
     const offset = targetFabricIndex - currentFabricIndex;
 
     if (offset > 0) {
-      // Move to front
       for (let i = 0; i < offset; i++) {
         canvas.bringObjectForward(movedLayer.fabricObject);
       }
     } else if (offset < 0) {
-      // Move to back
       for (let i = 0; i < Math.abs(offset); i++) {
         canvas.sendObjectBackwards(movedLayer.fabricObject);
       }
@@ -112,9 +216,6 @@ export class LayerManagementService {
     canvas.requestRenderAll();
   }
 
-  /**
-   * Select layer (and its corresponding object)
-   */
   selectLayer(layerId: string): void {
     const canvas = this.stateService.getCanvas();
     if (!canvas) return;
@@ -128,36 +229,50 @@ export class LayerManagementService {
     canvas.requestRenderAll();
   }
 
-  /**
-   * Hover layer (highlight object on canvas)
-   */
   hoverLayer(layerId: string | null): void {
     const canvas = this.stateService.getCanvas();
     if (!canvas) return;
 
-    // Remove previous hover effect
+    // Remove previous hover effects
     canvas.getObjects().forEach((obj) => {
-      obj.set('strokeWidth', 0);
+      obj.set({
+        strokeWidth: 0,
+        underline: false
+      });
     });
 
     if (layerId) {
       const layer = this.findLayerById(layerId);
       if (layer && layer.fabricObject) {
-        // Add hover effect
-        layer.fabricObject.set({
-          stroke: '#007AFF',
-          strokeWidth: 2,
-          strokeDashArray: [5, 5]
-        });
+        const obj = layer.fabricObject;
+
+        // Check if object is text (IText or Textbox)
+        if (
+          obj.type === 'i-text' ||
+          obj.type === 'IText' ||
+          obj.type === 'textbox' ||
+          obj.type === 'Textbox'
+        ) {
+          // For text objects, apply underline effect (like Figma)
+          obj.set({
+            underline: true,
+            stroke: undefined,
+            strokeWidth: 0
+          });
+        } else {
+          // For other objects (image, button, frame, etc.), apply border effect
+          obj.set({
+            stroke: '#007AFF',
+            strokeWidth: 2,
+            strokeDashArray: [5, 5]
+          });
+        }
       }
     }
 
     canvas.requestRenderAll();
   }
 
-  /**
-   * Toggle layer visibility
-   */
   toggleVisibility(layerId: string): void {
     const canvas = this.stateService.getCanvas();
     if (!canvas) return;
@@ -169,7 +284,6 @@ export class LayerManagementService {
     layer.fabricObject.set('visible', newVisibility);
     layer.visible = newVisibility;
 
-    // If hiding selected object, deselect it
     if (!newVisibility) {
       const activeObject = canvas.getActiveObject();
       if (activeObject === layer.fabricObject) {
@@ -178,14 +292,10 @@ export class LayerManagementService {
       }
     }
 
-    // Update layers
     this.layersSubject.next([...this.layersSubject.value]);
     canvas.requestRenderAll();
   }
 
-  /**
-   * Delete layer
-   */
   deleteLayer(layerId: string): void {
     const canvas = this.stateService.getCanvas();
     if (!canvas) return;
@@ -193,52 +303,34 @@ export class LayerManagementService {
     const layer = this.findLayerById(layerId);
     if (!layer || !layer.fabricObject) return;
 
-    // Prevent deleting frame
     if (layer.type === VariableType.FRAME) {
       console.warn('Cannot delete frame layer');
       return;
     }
 
-    // If deleting selected object, clear selection
     if (this.selectedLayerIdSubject.value === layerId) {
       this.selectedLayerIdSubject.next(null);
     }
 
-    // Remove from canvas
     canvas.remove(layer.fabricObject);
-
-    // Re-sync layers
     this.syncLayers();
     canvas.requestRenderAll();
   }
 
-  /**
-   * Get current layers
-   */
   getLayers(): Layer[] {
     return this.layersSubject.value;
   }
 
-  /**
-   * Check if layer is frame
-   */
   isFrameLayer(layerId: string): boolean {
     const layer = this.findLayerById(layerId);
     return layer?.type === VariableType.FRAME;
   }
 
-  /**
-   * Check if layer can be deleted
-   */
   canDeleteLayer(layerId: string): boolean {
     const layer = this.findLayerById(layerId);
     return layer?.type !== VariableType.FRAME;
   }
 
-  /**
-   * Update selected layer ID from canvas object
-   * Called when object is selected on canvas
-   */
   updateSelectedLayerFromObject(obj: FabricObject | null): void {
     if (!obj) {
       this.selectedLayerIdSubject.next(null);
@@ -251,38 +343,7 @@ export class LayerManagementService {
     }
   }
 
-  /**
-   * Find layer by ID
-   */
   private findLayerById(layerId: string): Layer | undefined {
     return this.layersSubject.value.find((layer) => layer.id === layerId);
-  }
-
-  /**
-   * Generate human-readable layer name
-   */
-  private generateLayerName(obj: FabricObject, type: string): string {
-    const metadata = obj.get('customMetadata') as any;
-
-    switch (type) {
-      case VariableType.TEXT: {
-        const text = (obj as any).text || 'Text';
-        return text.length > 20 ? text.substring(0, 20) + '...' : text;
-      }
-
-      case VariableType.IMAGE:
-        return 'Image';
-
-      case VariableType.BUTTON: {
-        const buttonText = metadata?.text || 'Button';
-        return buttonText.length > 20 ? buttonText.substring(0, 20) + '...' : buttonText;
-      }
-
-      case VariableType.FRAME:
-        return 'Frame';
-
-      default:
-        return 'Shape';
-    }
   }
 }

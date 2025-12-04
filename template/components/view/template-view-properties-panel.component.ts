@@ -3,14 +3,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { FormFieldComponent } from '@gsf/admin/app/shared/components/form-field/form-field.component';
 import {
-    ButtonDirective,
-    ICON_ARROW_LEFT_DOUBLE,
-    ICON_BOLD_ARROW_DOWN,
-    ICON_Drag_OUTLINE,
-    ICON_EYE,
-    ICON_EYE_OFF,
-    IconSvgComponent,
-    InputDirective
+  ButtonDirective,
+  ICON_ARROW_LEFT_DOUBLE,
+  ICON_BOLD_ARROW_DOWN,
+  ICON_DRAG_OUTLINE_2,
+  ICON_EYE,
+  ICON_EYE_OFF,
+  IconSvgComponent,
+  InputDirective
 } from '@gsf/ui';
 import { GeneralInfomationFormService } from '../../services/forms/general-information-form.service';
 import { LayerManagementService } from '../../services/layers/layer-management.service';
@@ -55,6 +55,7 @@ import { Layer } from '../../types/layer.type';
                   formControlName="name"
                   readonly
                   class="bg-gray-50"
+                  [title]="form.get('name')?.value"
                 />
               </gsf-form-field>
 
@@ -81,7 +82,7 @@ import { Layer } from '../../types/layer.type';
           <div class="flex-1 flex-shrink-0 flex flex-col overflow-y-auto">
             @for (layer of layers; track layer.id) {
               <div
-                class="flex items-center justify-between px-2 py-[10px]"
+                class="flex items-center justify-between px-2 py-[10px] cursor-pointer"
                 [class.bg-fill-cta-others-hover]="isSelected(layer.id)"
                 (click)="selectLayer(layer.id)"
               >
@@ -91,12 +92,6 @@ import { Layer } from '../../types/layer.type';
                     class="text-icon-disable cursor-not-allowed"
                   />
                   <span>{{ layer.name }}</span>
-                </div>
-
-                <div class="flex items-center">
-                  <div class="p-1">
-                    <gsf-icon-svg [icon]="layer.visible ? ICON_EYE : ICON_EYE_OFF" />
-                  </div>
                 </div>
               </div>
             }
@@ -121,7 +116,7 @@ export class TemplateViewPropertiesPanelComponent implements OnInit {
 
   ICON_ARROW_LEFT_DOUBLE = ICON_ARROW_LEFT_DOUBLE;
   ICON_BOLD_ARROW_DOWN = ICON_BOLD_ARROW_DOWN;
-  ICON_Drag_OUTLINE = ICON_Drag_OUTLINE;
+  ICON_Drag_OUTLINE = ICON_DRAG_OUTLINE_2;
   ICON_EYE = ICON_EYE;
   ICON_EYE_OFF = ICON_EYE_OFF;
 

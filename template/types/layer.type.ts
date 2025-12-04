@@ -8,4 +8,5 @@ export interface Layer {
   visible: boolean;
   locked: boolean;
   fabricObject?: FabricObject;
+  isEditingName?: boolean;
 }

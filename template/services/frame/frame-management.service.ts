@@ -26,6 +26,9 @@ export class FrameManagementService {
     const left = (canvasWidth - width) / 2;
     const top = (canvasHeight - height) / 2;
 
+    // Calculate and store initial aspect ratio
+    const aspectRatio = width / height;
+
     const frame = new Rect({
       left,
       top,
@@ -44,7 +47,6 @@ export class FrameManagementService {
       cornerStyle: 'circle',
       transparentCorners: false,
       cornerSize: 8,
-      // Prevent moving outside canvas
       lockMovementX: false,
       lockMovementY: false
     });
@@ -53,7 +55,9 @@ export class FrameManagementService {
       id: 'frame-main',
       createdAt: Date.now(),
       type: 'frame',
-      isMainFrame: true
+      isMainFrame: true,
+      aspectRatio: aspectRatio,
+      customName: 'Background'
     });
 
     this.stateService.updateFrameObject(frame);
@@ -74,6 +78,55 @@ export class FrameManagementService {
     };
 
     this.frameBoundsSubject.next(bounds);
+  }
+
+  /**
+   * Enforce aspect ratio during scaling
+   * This should be called in the scaling event handler
+   */
+  enforceAspectRatio(frame: FabricObject): void {
+    const metadata = frame.get('customMetadata') as any;
+    const targetAspectRatio = metadata?.aspectRatio;
+
+    if (!targetAspectRatio) return;
+
+    const currentWidth = (frame.width || 0) * (frame.scaleX || 1);
+    const currentHeight = (frame.height || 0) * (frame.scaleY || 1);
+    const currentAspectRatio = currentWidth / currentHeight;
+
+    // Check if aspect ratio has deviated
+    const tolerance = 0.01; // 1% tolerance
+    if (Math.abs(currentAspectRatio - targetAspectRatio) > tolerance) {
+      // Adjust scaleY to match the target aspect ratio based on current scaleX
+      const baseWidth = frame.width || 1;
+      const baseHeight = frame.height || 1;
+
+      // Calculate what scaleY should be to maintain aspect ratio
+      const targetHeight = currentWidth / targetAspectRatio;
+      const newScaleY = targetHeight / baseHeight;
+
+      frame.set('scaleY', newScaleY);
+      frame.setCoords();
+    }
+  }
+
+  /**
+   * Update aspect ratio in metadata
+   */
+  updateAspectRatio(frame: FabricObject, aspectRatio: number): void {
+    const metadata = frame.get('customMetadata') as any;
+    if (metadata) {
+      metadata.aspectRatio = aspectRatio;
+      frame.set('customMetadata', metadata);
+    }
+  }
+
+  /**
+   * Get stored aspect ratio
+   */
+  getAspectRatio(frame: FabricObject): number | null {
+    const metadata = frame.get('customMetadata') as any;
+    return metadata?.aspectRatio || null;
   }
 
   /**
@@ -186,9 +239,9 @@ export class FrameManagementService {
   }
 
   /**
-   * Resize frame and update all object clipping
+   * Resize frame with aspect ratio lock and update all object clipping
    */
-  resizeFrame(newWidth: number, newHeight: number): void {
+  resizeFrame(newWidth: number, newHeight: number, maintainAspectRatio = true): void {
     const frame = this.stateService.getFrameObject();
     if (!frame) return;
 
@@ -196,6 +249,22 @@ export class FrameManagementService {
 
     // Store old bounds for comparison
     const oldBounds = this.getFrameBounds();
+
+    if (maintainAspectRatio && oldBounds) {
+      // Calculate aspect ratio
+      const aspectRatio = oldBounds.width / oldBounds.height;
+
+      // Adjust dimensions to maintain aspect ratio
+      const widthBasedHeight = newWidth / aspectRatio;
+      const heightBasedWidth = newHeight * aspectRatio;
+
+      // Choose the dimension that fits best
+      if (Math.abs(newHeight - widthBasedHeight) < Math.abs(newWidth - heightBasedWidth)) {
+        newHeight = widthBasedHeight;
+      } else {
+        newWidth = heightBasedWidth;
+      }
+    }
 
     // Update frame dimensions
     frame.set({

@@ -97,7 +97,12 @@ export class ObjectDeserializerService {
       charSpacing: objData.charSpacing,
       underline: objData.underline,
       overline: objData.overline,
-      linethrough: objData.linethrough
+      linethrough: objData.linethrough,
+      lockScalingX: true,
+      lockScalingY: true,
+      lockScalingFlip: true,
+      lockSkewingX: true,
+      lockSkewingY: true
     });
 
     if (colorPreset) {

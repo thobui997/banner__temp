@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { UploadAttachmentComponent } from '@gsf/admin/app/shared/components';
 import { ICON_DOUBLE_ARROW_RIGHT, IconSvgComponent } from '@gsf/ui';
@@ -15,19 +15,25 @@ import { PropertySectionComponent } from '../object-controls/common/property-sec
 import { SizeComponent } from '../object-controls/common/size.component';
 import { BasePropertiesComponent } from './base-properties.components';
 import { PanelToggleService } from '../../services/ui/panel-toggle.service';
+import { CanvasStateService } from '../../services/canvas/canvas-state.service';
+import { LayerManagementService } from '../../services/layers/layer-management.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter } from 'rxjs';
 
 @Component({
   selector: 'app-image-properties',
   standalone: true,
   template: `
-    <form class="flex flex-col h-full" [formGroup]="form">
+    <form class="flex flex-col h-full" [formGroup]="form" (keydown.enter)="onEnterKey($event)">
       <!-- block name -->
       <div class="flex items-center gap-4 py-3 px-6" (click)="closePanel()">
-        <button gsfButton appColor="tertiary" class="text-text-primary-2">
+        <button gsfButton appColor="tertiary" class="text-text-primary-2" type="button">
           <gsf-icon-svg [icon]="ICON_DOUBLE_ARROW_RIGHT" />
         </button>
 
-        <span class="text-text-primary-2 text-lg font-semibold">Image Block</span>
+        <span class="text-text-primary-2 text-lg font-semibold line-clamp-1" [title]="layerName">
+          {{ layerName }}
+        </span>
       </div>
 
       <div class="flex-1 flex flex-col gap-5 overflow-y-auto">
@@ -48,9 +54,10 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
         <app-property-section label="Upload Image">
           <gsf-upload-attachment
             formControlName="attachments"
+            unsupportedMessage="Unsupported file type. Please upload a file in .png, .jpg, .jpeg, .svg format."
             [maxFiles]="1"
             [isMultipleUpload]="false"
-            [acceptedFileTypes]="['.jpeg', '.jpg', '.png']"
+            [acceptedFileTypes]="['.jpeg', '.jpg', '.png', '.svg']"
           />
         </app-property-section>
       </div>
@@ -72,16 +79,50 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
     TransformObjectService
   ]
 })
-export class ImagePropertiesComponent extends BasePropertiesComponent<ImagePropertiesFormService> {
+export class ImagePropertiesComponent
+  extends BasePropertiesComponent<ImagePropertiesFormService>
+  implements OnInit
+{
   protected formService = inject(ImagePropertiesFormService);
   protected baseService = inject(BasePropertiesService);
   private canvasFacade = inject(CanvasFacadeService);
   private mapper = inject(ImagePropertyMapper);
   private panelToggleService = inject(PanelToggleService);
+  private canvasStateService = inject(CanvasStateService);
+  private layerManagementService = inject(LayerManagementService);
 
   readonly ICON_DOUBLE_ARROW_RIGHT = ICON_DOUBLE_ARROW_RIGHT;
 
   form!: FormGroup;
+  layerName = '';
+  private currentLayerId = '';
+
+  override ngOnInit(): void {
+    super.ngOnInit();
+
+    // Subscribe to selected object to get initial layer name
+    this.canvasStateService.selectedObject$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((obj) => {
+        if (obj) {
+          const metadata = obj.get('customMetadata') as any;
+          this.currentLayerId = metadata?.id || '';
+          this.layerName = metadata?.customName;
+        }
+      });
+
+    // Subscribe to layer name changes
+    this.layerManagementService.layerNameChanged$
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        filter((change) => change !== null && change.layerId === this.currentLayerId)
+      )
+      .subscribe((change) => {
+        if (change) {
+          this.layerName = change.name;
+        }
+      });
+  }
 
   protected initializeForm(): void {
     this.form = this.formService.createForm();
@@ -104,6 +145,11 @@ export class ImagePropertiesComponent extends BasePropertiesComponent<ImagePrope
 
   closePanel(): void {
     this.panelToggleService.closeRightPanel();
+  }
+
+  onEnterKey(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   private updateCanvas(formValues: Partial<ImageProperties>): void {

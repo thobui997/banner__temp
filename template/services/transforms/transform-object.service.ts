@@ -94,6 +94,21 @@ export class TransformObjectService {
     const currentFlipX = obj.flipX ?? false;
     const currentFlipY = obj.flipY ?? false;
 
+    if (obj.originX !== 'center' || obj.originY !== 'center') {
+      // Store current center point
+      const centerPoint = obj.getCenterPoint();
+
+      // Set center origin
+      obj.set({
+        originX: 'center',
+        originY: 'center'
+      });
+
+      // Restore center position with new origin
+      obj.setPositionByOrigin(centerPoint, 'center', 'center');
+      obj.setCoords();
+    }
+
     switch (type) {
       case 'rotate':
         return {

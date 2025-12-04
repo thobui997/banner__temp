@@ -104,6 +104,9 @@ export class FrameRatioService {
 
     // Create command
     const command = new UpdateFrameCommand(canvas, frame, oldState, newState, () => {
+      // Update aspect ratio in metadata
+      this.frameManagement.updateAspectRatio(frame, newRatioOption.aspectRatio);
+
       this.frameManagement.updateFrameBounds(frame);
       this.frameManagement.applyClippingToAllObjects();
       this.currentRatioSubject.next(newRatioValue);
@@ -134,6 +137,9 @@ export class FrameRatioService {
     });
 
     this.currentRatioSubject.next(closestRatio.value);
+
+    // Store aspect ratio in metadata
+    this.frameManagement.updateAspectRatio(frame, closestRatio.aspectRatio);
   }
 
   /**

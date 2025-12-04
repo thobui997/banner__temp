@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ICON_DOUBLE_ARROW_RIGHT, IconSvgComponent, InputDirective } from '@gsf/ui';
 import { VariableType } from '../../consts/variables.const';
@@ -18,19 +18,31 @@ import { TextFontPropertiesComponent } from '../object-controls/text/text-font-p
 import { ButtonPropertyMapper } from '../../services/mappers/button-property-mapper.service';
 import { TransformObjectService } from '../../services/transforms/transform-object.service';
 import { PanelToggleService } from '../../services/ui/panel-toggle.service';
+import { CanvasStateService } from '../../services/canvas/canvas-state.service';
+import { LayerManagementService } from '../../services/layers/layer-management.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter } from 'rxjs';
 
 @Component({
   selector: 'app-button-properties',
   standalone: true,
   template: `
-    <form class="flex flex-col h-full" [formGroup]="form">
+    <form class="flex flex-col h-full" [formGroup]="form" (keydown.enter)="onEnterKey($event)">
       <!-- block name -->
       <div class="flex items-center gap-4 py-3 px-6">
-        <button gsfButton appColor="tertiary" class="text-text-primary-2" (click)="closePanel()">
+        <button
+          gsfButton
+          appColor="tertiary"
+          class="text-text-primary-2"
+          type="button"
+          (click)="closePanel()"
+        >
           <gsf-icon-svg [icon]="ICON_DOUBLE_ARROW_RIGHT" />
         </button>
 
-        <span class="text-text-primary-2 text-lg font-semibold">{{ form.get('text')?.value }}</span>
+        <span class="text-text-primary-2 text-lg font-semibold line-clamp-1" [title]="layerName">
+          {{ layerName }}
+        </span>
       </div>
 
       <div class="flex-1 flex flex-col gap-5 overflow-y-auto py-2">
@@ -101,25 +113,61 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
     TransformObjectService
   ]
 })
-export class ButtonPropertiesComponent extends BasePropertiesComponent<ButtonPropertiesFormService> {
+export class ButtonPropertiesComponent
+  extends BasePropertiesComponent<ButtonPropertiesFormService>
+  implements OnInit
+{
   protected formService = inject(ButtonPropertiesFormService);
   protected baseService = inject(BasePropertiesService);
   private canvasFacade = inject(CanvasFacadeService);
   private mapper = inject(ButtonPropertyMapper);
   private panelToggleService = inject(PanelToggleService);
+  private canvasStateService = inject(CanvasStateService);
+  private layerManagementService = inject(LayerManagementService);
 
   readonly ICON_DOUBLE_ARROW_RIGHT = ICON_DOUBLE_ARROW_RIGHT;
 
   form!: FormGroup;
   textColorPresets = new Set<string>(['#FFFFFF']);
-  bgColorPresets = new Set<string>(['#764FDB']);
+  bgColorPresets = new Set<string>(['#005AA9']);
+  layerName = '';
+  private currentLayerId = '';
+
+  override ngOnInit(): void {
+    super.ngOnInit();
+
+    // Subscribe to selected object to get initial layer name
+    this.canvasStateService.selectedObject$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((obj) => {
+        if (obj) {
+          const metadata = obj.get('customMetadata') as any;
+          this.currentLayerId = metadata?.id || '';
+          this.layerName = metadata?.customName;
+        }
+      });
+
+    // Subscribe to layer name changes
+    this.layerManagementService.layerNameChanged$
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        filter((change) => change !== null && change.layerId === this.currentLayerId)
+      )
+      .subscribe((change) => {
+        if (change) {
+          this.layerName = change.name;
+        }
+      });
+  }
 
   onTextPresetsChange(presets: Set<string>): void {
+    if (this.isViewOnly) return;
     this.textColorPresets = presets;
     this.updateObject({ customData: { colorPreset: presets } });
   }
 
   onBgPresetsChange(presets: Set<string>): void {
+    if (this.isViewOnly) return;
     this.bgColorPresets = presets;
     this.updateObject({ customData: { bgColorPreset: presets } });
   }
@@ -155,6 +203,11 @@ export class ButtonPropertiesComponent extends BasePropertiesComponent<ButtonPro
 
   closePanel(): void {
     this.panelToggleService.closeRightPanel();
+  }
+
+  onEnterKey(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   private updateObject(properties: Partial<ButtonProperties>): void {

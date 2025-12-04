@@ -65,7 +65,15 @@ import { ControlContainer, ReactiveFormsModule } from '@angular/forms';
 
       <!-- Rotation -->
       <gsf-input-group [appPrefix]="rotationPrefix">
-        <input gsfInput gsfInputNumber [hasFormat]="false" appSize="sm" formControlName="angle" />
+        <input
+          gsfInput
+          gsfInputNumber
+          appSize="sm"
+          formControlName="angle"
+          [hasFormat]="false"
+          [min]="0"
+          [max]="360"
+        />
       </gsf-input-group>
 
       <!-- Transform Controls -->

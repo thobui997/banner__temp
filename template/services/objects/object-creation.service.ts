@@ -1,23 +1,34 @@
 import { inject, Injectable } from '@angular/core';
-import { FabricImage, FabricObject, Group, IText, Rect, Textbox, util } from 'fabric';
+import { FabricImage, Group, IText, Rect, Textbox } from 'fabric';
 import { nanoid } from 'nanoid';
+import { AddObjectCommand } from '../../commands/add-object.command';
 import { VariableType } from '../../consts/variables.const';
 import { CanvasStateService } from '../canvas/canvas-state.service';
-import { AddObjectCommand } from '../../commands/add-object.command';
 import { CommandManagerService } from '../command/command-manager.service';
 import { FrameManagementService } from '../frame/frame-management.service';
+import { LayerManagementService } from '../layers/layer-management.service';
 
 @Injectable()
 export class ObjectCreationService {
   private stateService = inject(CanvasStateService);
   private commandManager = inject(CommandManagerService);
   private frameManagement = inject(FrameManagementService);
+  private layerManagement = inject(LayerManagementService);
+
+  private layerCounters = {
+    text: 0,
+    image: 0,
+    button: 0
+  };
 
   addText(text = 'Text Block', colorPreset?: Set<string>): void {
     const canvas = this.stateService.getCanvas();
 
     // Get constrained position within frame
     const position = this.frameManagement.getConstrainedPosition(100, 30);
+
+    this.layerCounters.text++;
+    const layerName = `Text ${this.layerCounters.text}`;
 
     const textObj = new IText(text, {
       left: position.left,
@@ -27,11 +38,17 @@ export class ObjectCreationService {
       fontFamily: 'Arial',
       fontWeight: 400,
       splitByGrapheme: false,
+      lockScalingFlip: true,
+      lockScalingX: true,
+      lockScalingY: true,
+      lockSkewingX: true,
+      lockSkewingY: true,
       colorPreset: colorPreset ? Array.from(colorPreset) : ['#000000'],
       customMetadata: {
         id: this.generateId(),
         createdAt: Date.now(),
-        type: VariableType.TEXT
+        type: VariableType.TEXT,
+        customName: layerName
       }
     });
 
@@ -52,6 +69,9 @@ export class ObjectCreationService {
     const imgHeight = imgObj.height || 200;
     const position = this.frameManagement.getConstrainedPosition(imgWidth, imgHeight);
 
+    this.layerCounters.image++;
+    const layerName = `Image ${this.layerCounters.image}`;
+
     imgObj.set({
       left: position.left,
       top: position.top,
@@ -62,7 +82,8 @@ export class ObjectCreationService {
     imgObj.set('customMetadata', {
       id: this.generateId(),
       createdAt: Date.now(),
-      type: VariableType.IMAGE
+      type: VariableType.IMAGE,
+      customName: layerName
     });
 
     // Apply frame clipping
@@ -104,7 +125,7 @@ export class ObjectCreationService {
       top: 0,
       width: buttonWidth,
       height: height,
-      fill: '#764FDB',
+      fill: '#005AA9',
       rx: 4,
       ry: 4,
       originX: 'center',
@@ -118,6 +139,9 @@ export class ObjectCreationService {
 
     // Get constrained position within frame
     const position = this.frameManagement.getConstrainedPosition(buttonWidth, height);
+
+    this.layerCounters.button++;
+    const layerName = `Button ${this.layerCounters.button}`;
 
     const groupObj = new Group([button, buttonText], {
       left: position.left,
@@ -133,10 +157,11 @@ export class ObjectCreationService {
       link: link || '',
       padding: paddingHorizontal,
       minWidth: minWidth,
-      height: height
+      height: height,
+      customName: layerName
     });
 
-    const bgPresetArray = bgColorPreset ? Array.from(bgColorPreset) : ['#764FDB'];
+    const bgPresetArray = bgColorPreset ? Array.from(bgColorPreset) : ['#005AA9'];
     groupObj.set('bgColorPreset', bgPresetArray);
 
     const presetArray = colorPreset ? Array.from(colorPreset) : ['#FFFFFF'];
@@ -147,6 +172,40 @@ export class ObjectCreationService {
 
     const command = new AddObjectCommand(canvas, groupObj);
     this.commandManager.execute(command);
+  }
+
+  resetCounters(): void {
+    this.layerCounters = {
+      text: 0,
+      image: 0,
+      button: 0
+    };
+  }
+
+  syncCountersFromLayers(): void {
+    const layers = this.layerManagement.getLayers();
+
+    // Reset counters
+    this.resetCounters();
+
+    layers.forEach((layer) => {
+      if (layer.name.startsWith('Text ')) {
+        const num = parseInt(layer.name.replace('Text ', ''));
+        if (!isNaN(num) && num > this.layerCounters.text) {
+          this.layerCounters.text = num;
+        }
+      } else if (layer.name.startsWith('Image ')) {
+        const num = parseInt(layer.name.replace('Image ', ''));
+        if (!isNaN(num) && num > this.layerCounters.image) {
+          this.layerCounters.image = num;
+        }
+      } else if (layer.name.startsWith('Button ')) {
+        const num = parseInt(layer.name.replace('Button ', ''));
+        if (!isNaN(num) && num > this.layerCounters.button) {
+          this.layerCounters.button = num;
+        }
+      }
+    });
   }
 
   private generateId(): string {

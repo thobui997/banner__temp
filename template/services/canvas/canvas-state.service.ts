@@ -77,4 +77,32 @@ export class CanvasStateService {
     this.selectedObjectPropertiesSubject.complete();
     this.frameObjectSubject.complete();
   }
+
+  maintainViewportOnResize(newWidth: number, newHeight: number): void {
+    if (!this.canvas) return;
+
+    const oldWidth = this.canvas.width || 0;
+    const oldHeight = this.canvas.height || 0;
+
+    // Get current viewport transform
+    const vpt = this.canvas.viewportTransform;
+    if (!vpt) return;
+
+    // Calculate center point before resize
+    const centerX = (oldWidth / 2 - vpt[4]) / vpt[0];
+    const centerY = (oldHeight / 2 - vpt[5]) / vpt[3];
+
+    // Update canvas dimensions
+    this.canvas.setDimensions({
+      width: newWidth,
+      height: newHeight
+    });
+
+    // Recalculate viewport transform to maintain center point
+    vpt[4] = newWidth / 2 - centerX * vpt[0];
+    vpt[5] = newHeight / 2 - centerY * vpt[3];
+
+    this.canvas.setViewportTransform(vpt);
+    this.canvas.requestRenderAll();
+  }
 }

@@ -1,4 +1,4 @@
-import { Directive, Input, OnInit } from '@angular/core';
+import { DestroyRef, Directive, inject, Input, OnInit } from '@angular/core';
 import { FormGroup } from '@angular/forms';
 import { BasePropertiesService } from '../../services/properties/base-properties.service';
 import { AlignmentType, TransformType } from '../../types/canvas-object.type';
@@ -10,6 +10,8 @@ import { AlignmentType, TransformType } from '../../types/canvas-object.type';
 @Directive()
 export abstract class BasePropertiesComponent<TFormService> implements OnInit {
   @Input() isViewOnly = false;
+
+  protected destroyRef = inject(DestroyRef);
 
   abstract form: FormGroup;
   protected abstract formService: TFormService;

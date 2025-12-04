@@ -18,11 +18,6 @@ import { CanvasStateService } from '../../services/canvas/canvas-state.service';
   template: `
     <div class="h-full relative" #canvasContainerElement>
       <canvas #canvasElement></canvas>
-
-      <!-- Read-only overlay indicator -->
-      <div class="absolute top-4 right-4 z-10">
-        <div class="bg-gray-800 text-white px-3 py-1 rounded text-sm shadow-lg">Read-only Mode</div>
-      </div>
     </div>
 
     <app-zoom-controls />
@@ -79,6 +74,7 @@ export class TemplateViewCanvasWorkspaceComponent implements AfterViewInit, OnDe
 
     // Disable selection
     canvas.selection = false;
+    canvas.skipTargetFind = true;
 
     // Make all objects non-selectable and non-interactive
     canvas.forEachObject((obj) => {

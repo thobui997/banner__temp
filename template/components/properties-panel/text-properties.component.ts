@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ICON_DOUBLE_ARROW_RIGHT, IconSvgComponent, InputDirective } from '@gsf/ui';
 import { CanvasFacadeService } from '../../services/canvas/canvas-facade.service';
@@ -14,19 +14,31 @@ import { PropertySectionComponent } from '../object-controls/common/property-sec
 import { TextAlignmentControlComponent } from '../object-controls/text/text-alignment-control.component';
 import { TextFontPropertiesComponent } from '../object-controls/text/text-font-properties.component';
 import { BasePropertiesComponent } from './base-properties.components';
+import { CanvasStateService } from '../../services/canvas/canvas-state.service';
+import { LayerManagementService } from '../../services/layers/layer-management.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter } from 'rxjs';
 
 @Component({
   selector: 'app-text-properties',
   standalone: true,
   template: `
-    <form class="flex flex-col h-full" [formGroup]="form">
+    <form class="flex flex-col h-full" [formGroup]="form" (keydown.enter)="onEnterKey($event)">
       <!-- block name -->
       <div class="flex items-center gap-4 py-3 px-6">
-        <button gsfButton appColor="tertiary" class="text-text-primary-2" (click)="closePanel()">
+        <button
+          gsfButton
+          appColor="tertiary"
+          type="button"
+          class="text-text-primary-2"
+          (click)="closePanel()"
+        >
           <gsf-icon-svg [icon]="ICON_DOUBLE_ARROW_RIGHT" />
         </button>
 
-        <span class="text-text-primary-2 text-lg font-semibold">{{ form.get('text')?.value }}</span>
+        <span class="text-text-primary-2 text-lg font-semibold line-clamp-1" [title]="layerName">
+          {{ layerName }}
+        </span>
       </div>
 
       <div class="flex-1 flex flex-col gap-5 overflow-y-auto">
@@ -77,10 +89,15 @@ import { BasePropertiesComponent } from './base-properties.components';
     TransformObjectService
   ]
 })
-export class TextPropertiesComponent extends BasePropertiesComponent<TextPropertiesFormService> {
+export class TextPropertiesComponent
+  extends BasePropertiesComponent<TextPropertiesFormService>
+  implements OnInit
+{
   protected formService = inject(TextPropertiesFormService);
   protected baseService = inject(BasePropertiesService);
   private canvasFacadeService = inject(CanvasFacadeService);
+  private canvasStateService = inject(CanvasStateService);
+  private layerManagementService = inject(LayerManagementService);
   private mapper = inject(TextPropertyMapper);
   private panelToggleService = inject(PanelToggleService);
 
@@ -88,7 +105,36 @@ export class TextPropertiesComponent extends BasePropertiesComponent<TextPropert
 
   form!: FormGroup;
   colorPresets = new Set<string>(['#000000']);
+  layerName = '';
+  private currentLayerId = '';
   private syncingFromCanvas = false;
+
+  override ngOnInit(): void {
+    super.ngOnInit();
+
+    // Subscribe to selected object to get initial layer name
+    this.canvasStateService.selectedObject$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((obj) => {
+        if (obj) {
+          const metadata = obj.get('customMetadata') as any;
+          this.currentLayerId = metadata?.id || '';
+          this.layerName = metadata?.customName;
+        }
+      });
+
+    // Subscribe to layer name changes
+    this.layerManagementService.layerNameChanged$
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        filter((change) => change !== null && change.layerId === this.currentLayerId)
+      )
+      .subscribe((change) => {
+        if (change) {
+          this.layerName = change.name;
+        }
+      });
+  }
 
   protected initializeForm(): void {
     this.form = this.formService.createForm();
@@ -119,12 +165,18 @@ export class TextPropertiesComponent extends BasePropertiesComponent<TextPropert
   }
 
   onPresetsChange(presets: Set<string>): void {
+    if (this.isViewOnly) return;
     this.colorPresets = presets;
     this.updateObject({ customData: { colorPreset: presets } });
   }
 
   closePanel(): void {
     this.panelToggleService.closeRightPanel();
+  }
+
+  onEnterKey(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   private updateObject(values: Partial<TextProperties>): void {

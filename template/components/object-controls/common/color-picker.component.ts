@@ -58,7 +58,7 @@ import { ColorSketchModule } from 'ngx-color/sketch';
                 <div class="text-sm text-gray-700 font-mono">{{ preset }}</div>
               </button>
 
-              @if (!disabled) {
+              @if (!disabled && presetsArray.length > 1) {
                 <button
                   type="button"
                   class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded text-icon-feature-icon-error-1"
@@ -178,7 +178,9 @@ export class ColorPickerComponent implements ControlValueAccessor {
 
   changeComplete(event: ColorEvent) {
     const { color } = event;
-    this.currentPickerColor = color.hex.toUpperCase() || '#000000';
+
+    const hex = this.rgbaToHex(color.rgb.r, color.rgb.g, color.rgb.b, color.rgb.a);
+    this.currentPickerColor = hex || '#000000';
   }
 
   updateValue(val: string | null) {
@@ -187,6 +189,7 @@ export class ColorPickerComponent implements ControlValueAccessor {
   }
 
   selectPreset(hex: string) {
+    if (this.disabled) return;
     this.updateValue(hex);
     this.onTouched();
   }
@@ -220,5 +223,13 @@ export class ColorPickerComponent implements ControlValueAccessor {
 
   private closeOverlay() {
     this.overlayTrigger?.closeOverlay();
+  }
+
+  private rgbaToHex(r: number, g: number, b: number, a = 1) {
+    const toHex = (n: number) => n.toString(16).padStart(2, '0');
+
+    const alpha = Math.round(a * 255);
+
+    return ('#' + toHex(r) + toHex(g) + toHex(b) + toHex(alpha)).toUpperCase();
   }
 }

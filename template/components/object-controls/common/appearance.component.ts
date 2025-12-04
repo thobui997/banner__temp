@@ -11,10 +11,12 @@ import { InputDirective, InputGroupComponent, InputNumberDirective } from '@gsf/
         <input
           gsfInput
           gsfInputNumber
-          [hasFormat]="false"
           appSize="sm"
           formControlName="opacity"
           class="w-full"
+          [hasFormat]="false"
+          [min]="0"
+          [max]="100"
         />
       </gsf-input-group>
 

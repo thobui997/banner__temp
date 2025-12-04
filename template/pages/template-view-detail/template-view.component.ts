@@ -27,6 +27,7 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
 import { SnapLineService } from '../../services/canvas/canvas-snap-line.service';
 import { Destroyer } from '@gsf/admin/app/shared/base';
 import { TemplateViewEditorContainerComponent } from '../../components/view/template-view-editor-container.component';
+import { CommandManagerService } from '../../services/command/command-manager.service';
 
 @Component({
   selector: 'app-template-view',
@@ -55,7 +56,8 @@ import { TemplateViewEditorContainerComponent } from '../../components/view/temp
     FrameRatioService,
     SnapLineService,
     CanvasZoomService,
-    PanelToggleService
+    PanelToggleService,
+    CommandManagerService
   ]
 })
 export class TemplateViewComponent extends Destroyer implements OnInit {

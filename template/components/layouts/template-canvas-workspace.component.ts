@@ -39,6 +39,7 @@ export class TemplateCanvasWorkspaceComponent implements AfterViewInit, OnDestro
   @ViewChild('canvasContainerElement') canvasContainerElement!: ElementRef<HTMLElement>;
 
   private resizeObserver?: ResizeObserver;
+  private resizeTimeout?: any;
 
   ngAfterViewInit(): void {
     this.canvasService.initCanvas(
@@ -57,20 +58,31 @@ export class TemplateCanvasWorkspaceComponent implements AfterViewInit, OnDestro
   }
 
   ngOnDestroy(): void {
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout);
+    }
     this.resizeObserver?.disconnect();
     this.canvasService.disposeCanvas();
   }
 
   private setupResizeObserver(): void {
     this.resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-
-        // Debounce resize to avoid too many calls
-        requestAnimationFrame(() => {
-          this.canvasService.resizeCanvas(width, height);
-        });
+      // Clear previous timeout
+      if (this.resizeTimeout) {
+        clearTimeout(this.resizeTimeout);
       }
+
+      // Debounce resize to avoid too many calls
+      this.resizeTimeout = setTimeout(() => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect;
+
+          // Use requestAnimationFrame for smooth resize
+          requestAnimationFrame(() => {
+            this.canvasService.resizeCanvas(width, height);
+          });
+        }
+      }, 50);
     });
 
     this.resizeObserver.observe(this.canvasContainerElement.nativeElement);

@@ -11,8 +11,13 @@ import { fontFamily, fontSizes, fontWeights } from '../../../consts/text-font.co
     <div class="flex flex-col gap-2">
       <app-select [options]="fontFamily" placeholder="Select font" formControlName="fontFamily" />
       <div class="grid grid-cols-2 gap-4">
-        <app-select [options]="fontWeights" [hasShowTooltip]="true" formControlName="fontWeight" />
-        <app-select [options]="fontSizes" formControlName="fontSize" />
+        <app-select
+          formControlName="fontWeight"
+          [options]="fontWeights"
+          [hasShowTooltip]="true"
+          [showSearchOrCheck]="false"
+        />
+        <app-select [options]="fontSizes" formControlName="fontSize" [showSearchOrCheck]="false" />
       </div>
     </div>
   `,

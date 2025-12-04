@@ -1,29 +1,31 @@
 import { CdkDrag, CdkDragDrop, CdkDropList } from '@angular/cdk/drag-drop';
 import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { FormFieldErrorComponent } from '@gsf/admin/app/shared/components/form-field-error/form-field-error.component';
 import { FormFieldComponent } from '@gsf/admin/app/shared/components/form-field/form-field.component';
 import {
   ButtonDirective,
   ICON_ARROW_LEFT_DOUBLE,
   ICON_BOLD_ARROW_DOWN,
   ICON_CLOSE,
-  ICON_Drag_OUTLINE,
+  ICON_DRAG_OUTLINE_2,
+  ICON_EDIT_2_OUTLINE,
   ICON_EYE,
+  ICON_EYE_OFF,
   IconSvgComponent,
   InputDirective
 } from '@gsf/ui';
 import { DeleteLayerCommand } from '../../commands/delete-layer.command';
+import { RenameLayerCommand } from '../../commands/rename-layer.command';
 import { ReorderLayerCommand } from '../../commands/reorder-layer.command';
 import { ToggleLayerVisibilityCommand } from '../../commands/toggle-layer-visibility.command';
 import { CanvasStateService } from '../../services/canvas/canvas-state.service';
 import { CommandManagerService } from '../../services/command/command-manager.service';
-import { LayerManagementService } from '../../services/layers/layer-management.service';
-import { Layer } from '../../types/layer.type';
-import { ICON_EYE_OFF } from './../../../../../../../../libs/ui/src/lib/icons/index';
 import { GeneralInfomationFormService } from '../../services/forms/general-information-form.service';
-import { FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { FormFieldErrorComponent } from '@gsf/admin/app/shared/components/form-field-error/form-field-error.component';
+import { LayerManagementService } from '../../services/layers/layer-management.service';
 import { PanelToggleService } from '../../services/ui/panel-toggle.service';
+import { Layer } from '../../types/layer.type';
 
 @Component({
   selector: 'app-template-properties-panel',
@@ -62,7 +64,7 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
                   gsfInput
                   placeholder="Enter Template Name"
                   formControlName="name"
-                  maxlength="100"
+                  maxlength="50"
                 />
                 <app-form-field-error slot="error" [control]="form.get('name')" />
               </gsf-form-field>
@@ -96,40 +98,69 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
             @for (layer of layers; track layer.id) {
               <div
                 cdkDrag
-                class="flex items-center justify-between px-2 py-[10px] hover:bg-fill-cta-others-hover"
+                class="flex items-center justify-between px-2 py-[10px] hover:bg-fill-cta-others-hover group"
                 [class.bg-fill-cta-others-hover]="isSelected(layer.id)"
                 (click)="selectLayer(layer.id)"
                 (mouseenter)="hoverLayer(layer.id)"
                 (mouseleave)="hoverLayer(null)"
               >
-                <div class="flex gap-2 items-center">
+                <div class="flex gap-2 items-center flex-1 min-w-0">
                   <gsf-icon-svg
                     [icon]="ICON_Drag_OUTLINE"
-                    class="text-text-primary-1 cursor-grab active:cursor-grabbing "
+                    class="text-text-primary-1 cursor-grab active:cursor-grabbing flex-shrink-0"
                     cdkDragHandle
                     [class.text-icon-disable]="layer.type === 'frame'"
                   />
-                  <span>{{ layer.name }}</span>
+
+                  @if (layer.isEditingName) {
+                    <input
+                      #layerNameInput
+                      type="text"
+                      class="flex-1 px-2 py-1 text-sm border border-primary-500 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      maxlength="50"
+                      [value]="layer.name"
+                      (click)="$event.stopPropagation()"
+                      (blur)="finishEditingLayerName(layer, $event)"
+                      (keydown.enter)="finishEditingLayerName(layer, $event)"
+                      (keydown.escape)="cancelEditingLayerName(layer)"
+                    />
+                  } @else {
+                    <span class="truncate text-sm" [title]="layer.name">{{ layer.name }}</span>
+                  }
                 </div>
 
-                <div class="flex items-center">
+                <div class="flex items-center flex-shrink-0">
+                  @if (!layer.isEditingName) {
+                    <button
+                      gsfButton
+                      appColor="tertiary"
+                      appSize="lg"
+                      class="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      (click)="startEditingLayerName(layer, $event)"
+                      title="Rename layer"
+                    >
+                      <gsf-icon-svg [icon]="ICON_EDIT_2_OUTLINE" />
+                    </button>
+                  }
+
                   <button
                     gsfButton
                     appColor="tertiary"
                     appSize="lg"
                     class="p-1"
-                    (click)="toggleVisibility(layer.id)"
-                    [disabled]="layer.type === 'frame'"
+                    (click)="toggleVisibility(layer.id, $event)"
+                    [class.hidden]="layer.type === 'frame'"
                   >
                     <gsf-icon-svg [icon]="layer.visible ? ICON_EYE : ICON_EYE_OFF" />
                   </button>
+
                   <button
                     gsfButton
                     appColor="tertiary"
                     appSize="lg"
-                    class="p-1  text-icon-feature-icon-error-1"
-                    (click)="deleteLayer(layer.id)"
-                    [disabled]="layer.type === 'frame'"
+                    class="p-1 text-icon-feature-icon-error-1"
+                    (click)="deleteLayer(layer.id, $event)"
+                    [class.hidden]="layer.type === 'frame'"
                   >
                     <gsf-icon-svg [icon]="ICON_CLOSE" />
                   </button>
@@ -141,7 +172,6 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
       </div>
     </div>
   `,
-
   imports: [
     ReactiveFormsModule,
     IconSvgComponent,
@@ -182,10 +212,11 @@ export class TemplatePropertiesPanelComponent implements OnInit {
 
   ICON_ARROW_LEFT_DOUBLE = ICON_ARROW_LEFT_DOUBLE;
   ICON_BOLD_ARROW_DOWN = ICON_BOLD_ARROW_DOWN;
-  ICON_Drag_OUTLINE = ICON_Drag_OUTLINE;
+  ICON_Drag_OUTLINE = ICON_DRAG_OUTLINE_2;
   ICON_EYE = ICON_EYE;
   ICON_EYE_OFF = ICON_EYE_OFF;
   ICON_CLOSE = ICON_CLOSE;
+  ICON_EDIT_2_OUTLINE = ICON_EDIT_2_OUTLINE;
 
   layers: Layer[] = [];
   selectedLayerId: string | null = null;
@@ -216,12 +247,14 @@ export class TemplatePropertiesPanelComponent implements OnInit {
     this.layerManagementService.hoverLayer(layerId);
   }
 
-  toggleVisibility(layerId: string): void {
+  toggleVisibility(layerId: string, event: Event): void {
+    event.stopPropagation();
     const command = new ToggleLayerVisibilityCommand(this.layerManagementService, layerId);
     this.commandManager.execute(command);
   }
 
-  deleteLayer(layerId: string): void {
+  deleteLayer(layerId: string, event: Event): void {
+    event.stopPropagation();
     const canvas = this.canvasStateService.getCanvas();
     const command = new DeleteLayerCommand(this.layerManagementService, canvas, layerId);
     this.commandManager.execute(command);
@@ -241,6 +274,41 @@ export class TemplatePropertiesPanelComponent implements OnInit {
 
       this.commandManager.execute(command);
     }
+  }
+
+  startEditingLayerName(layer: Layer, event: Event): void {
+    event.stopPropagation();
+    layer.isEditingName = true;
+
+    // Focus input after render
+    setTimeout(() => {
+      const input = document.querySelector(`input[value="${layer.name}"]`) as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 0);
+  }
+
+  finishEditingLayerName(layer: Layer, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const newName = input.value.trim();
+
+    if (newName && newName !== layer.name) {
+      const command = new RenameLayerCommand(
+        this.layerManagementService,
+        layer.id,
+        layer.name,
+        newName
+      );
+      this.commandManager.execute(command);
+    }
+
+    layer.isEditingName = false;
+  }
+
+  cancelEditingLayerName(layer: Layer): void {
+    layer.isEditingName = false;
   }
 
   isSelected(layerId: string): boolean {
