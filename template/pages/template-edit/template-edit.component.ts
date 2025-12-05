@@ -161,9 +161,13 @@ export class TemplateEditComponent extends CanDeactivateBase implements OnInit {
         this.frameRatioService.changeRatio(template.ratio);
 
         // Load JSON into canvas (delay to ensure canvas is initialized)
-        setTimeout(() => {
+        setTimeout(async () => {
           const jsonContent = template.templateContent.jsonFile;
-          this.canvasFacadeService.loadTemplateFromJson(jsonContent);
+          await this.canvasFacadeService.loadTemplateFromJson(jsonContent);
+
+          this.canvasFacadeService.resetViewport();
+          this.canvasFacadeService.zoomToFit();
+
           this.isLoading = false;
         }, 0);
       },

@@ -219,11 +219,23 @@ export class FrameManagementService {
     preferredTop?: number
   ): { left: number; top: number } {
     const frameBounds = this.getFrameBounds();
+    const canvas = this.stateService.getCanvas();
 
     if (!frameBounds) {
+      // No frame, use canvas center with viewport transform
+      const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+      const zoom = canvas.getZoom();
+
+      const canvasWidth = canvas.width || 0;
+      const canvasHeight = canvas.height || 0;
+
+      // Convert viewport center to canvas coordinates
+      const canvasCenterX = (canvasWidth / 2 - vpt[4]) / zoom;
+      const canvasCenterY = (canvasHeight / 2 - vpt[5]) / zoom;
+
       return {
-        left: preferredLeft || 100,
-        top: preferredTop || 100
+        left: preferredLeft ?? canvasCenterX - width / 2,
+        top: preferredTop ?? canvasCenterY - height / 2
       };
     }
 

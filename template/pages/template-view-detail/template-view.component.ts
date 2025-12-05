@@ -114,6 +114,10 @@ export class TemplateViewComponent extends Destroyer implements OnInit {
         setTimeout(async () => {
           const jsonContent = template.templateContent.jsonFile;
           await this.canvasFacadeService.loadTemplateFromJson(jsonContent);
+
+          this.canvasFacadeService.resetViewport();
+          this.canvasFacadeService.zoomToFit();
+
           this.makeCanvasReadOnly();
           this.isLoading = false;
         }, 0);

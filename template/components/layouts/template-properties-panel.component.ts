@@ -31,8 +31,8 @@ import { Layer } from '../../types/layer.type';
   selector: 'app-template-properties-panel',
   standalone: true,
   template: `
-    <div class="w-[320px] h-full bg-white border border-stroke-primary-2 overflow-hidden">
-      <div class="flex flex-col h-full overflow-y-auto">
+    <div class="w-[320px] h-full bg-white border border-stroke-primary-2">
+      <div class="flex flex-col h-full">
         <!-- header -->
         <div class="flex items-center justify-end px-6 py-3">
           <button
@@ -46,127 +46,129 @@ import { Layer } from '../../types/layer.type';
           </button>
         </div>
 
-        <!-- general information section -->
-        <div class="px-6 pt-2">
-          <details open>
-            <summary>
-              <div class="flex items-center gap-2 cursor-pointer">
-                <gsf-icon-svg [icon]="ICON_BOLD_ARROW_DOWN" />
-                <span class="text-text-primary-2 font-semibold">General Information</span>
-              </div>
-            </summary>
+        <div class="flex-1 overflow-y-auto flex flex-col">
+          <!-- general information section -->
+          <div class="px-6 pt-2">
+            <details open>
+              <summary>
+                <div class="flex items-center gap-2 cursor-pointer">
+                  <gsf-icon-svg [icon]="ICON_BOLD_ARROW_DOWN" />
+                  <span class="text-text-primary-2 font-semibold">General Information</span>
+                </div>
+              </summary>
 
-            <form class="py-4 flex flex-col gap-4" [formGroup]="form">
-              <gsf-form-field label="Template Name" [required]="true">
-                <input
-                  slot="input"
-                  type="text"
-                  gsfInput
-                  placeholder="Enter Template Name"
-                  formControlName="name"
-                  maxlength="50"
-                />
-                <app-form-field-error slot="error" [control]="form.get('name')" />
-              </gsf-form-field>
+              <form class="py-4 flex flex-col gap-4" [formGroup]="form">
+                <gsf-form-field label="Template Name" [required]="true">
+                  <input
+                    slot="input"
+                    type="text"
+                    gsfInput
+                    placeholder="Enter Template Name"
+                    formControlName="name"
+                    maxlength="50"
+                  />
+                  <app-form-field-error slot="error" [control]="form.get('name')" />
+                </gsf-form-field>
 
-              <gsf-form-field label="Description" class="">
-                <textarea
-                  slot="input"
-                  gsfInput
-                  placeholder="Enter Description"
-                  rows="5"
-                  class="resize-none"
-                  formControlName="description"
-                  maxlength="250"
-                ></textarea>
-              </gsf-form-field>
-            </form>
-          </details>
-        </div>
-
-        <!-- layer section -->
-        <div class="flex-1 flex flex-col">
-          <div class="border-t border-b border-stroke-primary-2">
-            <div class="px-6 py-[14px] font-semibold text-text-primary-2">Layers</div>
+                <gsf-form-field label="Description" class="">
+                  <textarea
+                    slot="input"
+                    gsfInput
+                    placeholder="Enter Description"
+                    rows="5"
+                    class="resize-none"
+                    formControlName="description"
+                    maxlength="250"
+                  ></textarea>
+                </gsf-form-field>
+              </form>
+            </details>
           </div>
 
-          <div
-            class="flex-shrink-0 flex flex-col"
-            cdkDropList
-            (cdkDropListDropped)="onDrop($event)"
-          >
-            @for (layer of layers; track layer.id) {
-              <div
-                cdkDrag
-                class="flex items-center justify-between px-2 py-[10px] hover:bg-fill-cta-others-hover group"
-                [class.bg-fill-cta-others-hover]="isSelected(layer.id)"
-                (click)="selectLayer(layer.id)"
-                (mouseenter)="hoverLayer(layer.id)"
-                (mouseleave)="hoverLayer(null)"
-              >
-                <div class="flex gap-2 items-center flex-1 min-w-0">
-                  <gsf-icon-svg
-                    [icon]="ICON_Drag_OUTLINE"
-                    class="text-text-primary-1 cursor-grab active:cursor-grabbing flex-shrink-0"
-                    cdkDragHandle
-                    [class.text-icon-disable]="layer.type === 'frame'"
-                  />
+          <!-- layer section -->
+          <div class="flex-1 flex flex-col">
+            <div class="border-t border-b border-stroke-primary-2">
+              <div class="px-6 py-[14px] font-semibold text-text-primary-2">Layers</div>
+            </div>
 
-                  @if (layer.isEditingName) {
-                    <input
-                      #layerNameInput
-                      type="text"
-                      class="flex-1 px-2 py-1 text-sm border border-primary-500 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      maxlength="50"
-                      [value]="layer.name"
-                      (click)="$event.stopPropagation()"
-                      (blur)="finishEditingLayerName(layer, $event)"
-                      (keydown.enter)="finishEditingLayerName(layer, $event)"
-                      (keydown.escape)="cancelEditingLayerName(layer)"
+            <div
+              class="flex-shrink-0 flex flex-col"
+              cdkDropList
+              (cdkDropListDropped)="onDrop($event)"
+            >
+              @for (layer of layers; track layer.id) {
+                <div
+                  cdkDrag
+                  class="flex items-center justify-between px-2 py-[10px] hover:bg-fill-cta-others-hover group"
+                  [class.bg-fill-cta-others-hover]="isSelected(layer.id)"
+                  (click)="selectLayer(layer.id)"
+                  (mouseenter)="hoverLayer(layer.id)"
+                  (mouseleave)="hoverLayer(null)"
+                >
+                  <div class="flex gap-2 items-center flex-1 min-w-0">
+                    <gsf-icon-svg
+                      [icon]="ICON_Drag_OUTLINE"
+                      class="text-text-primary-1 cursor-grab active:cursor-grabbing flex-shrink-0"
+                      cdkDragHandle
+                      [class.text-icon-disable]="layer.type === 'frame'"
                     />
-                  } @else {
-                    <span class="truncate text-sm" [title]="layer.name">{{ layer.name }}</span>
-                  }
-                </div>
 
-                <div class="flex items-center flex-shrink-0">
-                  @if (!layer.isEditingName) {
+                    @if (layer.isEditingName) {
+                      <input
+                        #layerNameInput
+                        type="text"
+                        class="flex-1 px-2 py-1 text-sm border border-primary-500 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        maxlength="50"
+                        [value]="layer.name"
+                        (click)="$event.stopPropagation()"
+                        (blur)="finishEditingLayerName(layer, $event)"
+                        (keydown.enter)="finishEditingLayerName(layer, $event)"
+                        (keydown.escape)="cancelEditingLayerName(layer)"
+                      />
+                    } @else {
+                      <span class="truncate text-sm" [title]="layer.name">{{ layer.name }}</span>
+                    }
+                  </div>
+
+                  <div class="flex items-center flex-shrink-0">
+                    @if (!layer.isEditingName) {
+                      <button
+                        gsfButton
+                        appColor="tertiary"
+                        appSize="lg"
+                        class="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        (click)="startEditingLayerName(layer, $event)"
+                        title="Rename layer"
+                      >
+                        <gsf-icon-svg [icon]="ICON_EDIT_2_OUTLINE" />
+                      </button>
+                    }
+
                     <button
                       gsfButton
                       appColor="tertiary"
                       appSize="lg"
-                      class="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      (click)="startEditingLayerName(layer, $event)"
-                      title="Rename layer"
+                      class="p-1"
+                      (click)="toggleVisibility(layer.id, $event)"
+                      [class.hidden]="layer.type === 'frame'"
                     >
-                      <gsf-icon-svg [icon]="ICON_EDIT_2_OUTLINE" />
+                      <gsf-icon-svg [icon]="layer.visible ? ICON_EYE : ICON_EYE_OFF" />
                     </button>
-                  }
 
-                  <button
-                    gsfButton
-                    appColor="tertiary"
-                    appSize="lg"
-                    class="p-1"
-                    (click)="toggleVisibility(layer.id, $event)"
-                    [class.hidden]="layer.type === 'frame'"
-                  >
-                    <gsf-icon-svg [icon]="layer.visible ? ICON_EYE : ICON_EYE_OFF" />
-                  </button>
-
-                  <button
-                    gsfButton
-                    appColor="tertiary"
-                    appSize="lg"
-                    class="p-1 text-icon-feature-icon-error-1"
-                    (click)="deleteLayer(layer.id, $event)"
-                    [class.hidden]="layer.type === 'frame'"
-                  >
-                    <gsf-icon-svg [icon]="ICON_CLOSE" />
-                  </button>
+                    <button
+                      gsfButton
+                      appColor="tertiary"
+                      appSize="lg"
+                      class="p-1 text-icon-feature-icon-error-1"
+                      (click)="deleteLayer(layer.id, $event)"
+                      [class.hidden]="layer.type === 'frame'"
+                    >
+                      <gsf-icon-svg [icon]="ICON_CLOSE" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            }
+              }
+            </div>
           </div>
         </div>
       </div>

@@ -310,4 +310,8 @@ export class CanvasFacadeService {
 
     return contentBlocks.length > 0;
   }
+
+  resetViewport(): void {
+    this.zoomService.resetViewport();
+  }
 }

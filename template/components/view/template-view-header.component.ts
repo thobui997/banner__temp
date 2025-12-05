@@ -54,7 +54,7 @@ import { PanelToggleService } from '../../services/ui/panel-toggle.service';
       <ng-container [ngTemplateOutlet]="sepratorTmpl" />
 
       <div class="flex-1 flex items-center justify-between">
-        <div class="text-sm text-text-secondary font-medium">View Only Mode</div>
+        <div class="text-sm text-text-secondary font-medium">Preview</div>
       </div>
 
       <!-- Open Right Panel Button -->

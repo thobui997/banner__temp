@@ -302,6 +302,16 @@ export class CanvasZoomService {
     return Math.round(this.zoomStateSubject.value.zoom * 100);
   }
 
+  resetViewport(): void {
+    const canvas = this.stateService.getCanvas();
+
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    canvas.setZoom(1);
+
+    this.updateZoomState({ zoom: 1 });
+    canvas.requestRenderAll();
+  }
+
   /**
    * Update zoom state
    */
