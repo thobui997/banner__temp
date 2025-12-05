@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { FabricObject, FabricImage, IText, Rect, Group, Textbox } from 'fabric';
+import { FabricObject, Group, IText, Rect, Textbox } from 'fabric';
 import {
   ButtonProperties,
   CanvasObjectProperties,
@@ -19,7 +19,7 @@ export class ObjectPropertiesExtractorService {
       case VariableType.TEXT:
         return this.extractTextProperties(obj as IText);
       case VariableType.IMAGE:
-        return this.extractImageProperties(obj as FabricImage);
+        return this.extractImageProperties(obj as Rect);
       case VariableType.BUTTON:
         return this.extractButtonProperties(obj as Group);
       case VariableType.FRAME:
@@ -58,29 +58,24 @@ export class ObjectPropertiesExtractorService {
     };
   }
 
-  private extractImageProperties(imageObj: FabricImage): ImageProperties {
-    let cornerRadius = 0;
-    const clipPath = imageObj.clipPath;
-
-    if (clipPath && clipPath instanceof Rect) {
-      cornerRadius = clipPath.rx || 0;
-    }
+  private extractImageProperties(imageRect: Rect): ImageProperties {
+    const cornerRadius = imageRect.rx || 0;
 
     return {
       type: VariableType.IMAGE,
       position: {
-        x: Math.round(imageObj.left || 0),
-        y: Math.round(imageObj.top || 0),
-        angle: Math.round(imageObj.angle || 0)
+        x: Math.round(imageRect.left || 0),
+        y: Math.round(imageRect.top || 0),
+        angle: Math.round(imageRect.angle || 0)
       },
-      width: (imageObj.width || 0) * (imageObj.scaleX || 1),
-      height: (imageObj.height || 0) * (imageObj.scaleY || 1),
+      width: (imageRect.width || 0) * (imageRect.scaleX || 1),
+      height: (imageRect.height || 0) * (imageRect.scaleY || 1),
       cornerRadius: cornerRadius,
-      opacity: imageObj.opacity,
-      src: imageObj.getSrc(),
-      attachments: (imageObj.get('attachments') as any[]) || [],
+      opacity: imageRect.opacity,
+      src: (imageRect.get('imageSrc') as string) || '',
+      attachments: (imageRect.get('attachments') as any[]) || [],
       customData: {
-        metadata: imageObj.get('customMetadata') as any
+        metadata: imageRect.get('customMetadata') as any
       }
     };
   }
@@ -125,7 +120,7 @@ export class ObjectPropertiesExtractorService {
       fontSize: text.fontSize || 14,
       textAlignment: (text.textAlign as any) || 'center',
       text: text.text || '',
-      link: (groupObj as any).buttonLink || '',
+      buttonLink: (groupObj as any).buttonLink || '',
       customData: {
         colorPreset: colorPreset,
         bgColorPreset: bgColorPreset,

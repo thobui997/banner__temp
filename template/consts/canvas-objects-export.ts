@@ -1,0 +1,20 @@
+export const CANVAS_OBJECTS_EXPORT = [
+  'colorPreset',
+  'bgColorPreset',
+  'attachments',
+  'customMetadata',
+  'clipPath',
+  'stroke',
+  'strokeWidth',
+  'strokeUniform',
+  'borderColor',
+  'cornerStyle',
+  'cornerColor',
+  'transparentCorners',
+  'cornerSize',
+  'lockRotation',
+  'lockScalingFlip',
+  'imageSrc',
+  'rx',
+  'ry'
+];

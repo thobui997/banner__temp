@@ -1,7 +1,5 @@
-// template/services/objects/object-deserializer.service.ts
-
 import { inject, Injectable } from '@angular/core';
-import { FabricImage, FabricObject, Group, IText, Rect, Textbox } from 'fabric';
+import { FabricImage, FabricObject, Group, IText, Pattern, Rect, Textbox } from 'fabric';
 import { VariableType } from '../../consts/variables.const';
 import { CanvasStateService } from '../canvas/canvas-state.service';
 
@@ -49,17 +47,21 @@ export class ObjectDeserializerService {
       case 'i-text':
         return this.deserializeText(objData);
 
-      case 'Image':
-      case 'image':
-        return await this.deserializeImage(objData);
+      case 'Rect':
+      case 'rect': {
+        // Check if it's an image rect or frame rect
+        const metadata = objData.customMetadata;
+        if (metadata?.type === 'image') {
+          return await this.deserializeImage(objData);
+        } else if (metadata?.type === 'frame') {
+          return this.deserializeRect(objData);
+        }
+        return this.deserializeRect(objData);
+      }
 
       case 'Group':
       case 'group':
         return await this.deserializeGroup(objData);
-
-      case 'Rect':
-      case 'rect':
-        return this.deserializeRect(objData);
 
       default:
         console.warn('Unknown object type:', objData.type);
@@ -125,44 +127,61 @@ export class ObjectDeserializerService {
   /**
    * Deserialize FabricImage
    */
-  private async deserializeImage(objData: any): Promise<FabricImage> {
+  private async deserializeImage(objData: any): Promise<Rect> {
     const attachments = objData.attachments;
     const customMetadata = objData.customMetadata;
+    const imageSrc = objData.imageSrc || objData.src;
 
-    // Create image from URL
-    const imgObj = await FabricImage.fromURL(objData.src, {
-      crossOrigin: 'anonymous'
-    });
+    // Load image first
+    const imgElement = await FabricImage.fromURL(imageSrc, { crossOrigin: 'anonymous' });
 
-    // Set properties
-    imgObj.set({
+    // Create rectangle with image pattern
+    const imageRect = new Rect({
       left: objData.left,
       top: objData.top,
+      width: objData.width || imgElement.width || 200,
+      height: objData.height || imgElement.height || 200,
       scaleX: objData.scaleX || 1,
       scaleY: objData.scaleY || 1,
       angle: objData.angle || 0,
       opacity: objData.opacity !== undefined ? objData.opacity : 1,
       visible: objData.visible !== false,
       flipX: objData.flipX || false,
-      flipY: objData.flipY || false
+      flipY: objData.flipY || false,
+      rx: objData.cornerRadius || objData.rx || 0,
+      ry: objData.cornerRadius || objData.ry || 0,
+      originX: 'left',
+      originY: 'top'
     });
 
+    // Create and apply pattern
+    const pattern = new Pattern({
+      source: imgElement.getElement(),
+      repeat: 'no-repeat'
+    });
+
+    imageRect.set('fill', pattern);
+
+    // Set custom properties
     if (attachments) {
-      imgObj.set('attachments', attachments);
+      imageRect.set('attachments', attachments);
     }
 
     if (customMetadata) {
-      imgObj.set('customMetadata', customMetadata);
+      imageRect.set('customMetadata', customMetadata);
     }
 
+    imageRect.set('imageSrc', imageSrc);
+
+    // Apply clipPath if exists (for frame clipping)
     if (objData.clipPath) {
       const clipPath = this.deserializeClipPath(objData.clipPath);
       if (clipPath) {
-        imgObj.set('clipPath', clipPath);
+        imageRect.set('clipPath', clipPath);
       }
     }
 
-    return imgObj;
+    return imageRect;
   }
 
   /**

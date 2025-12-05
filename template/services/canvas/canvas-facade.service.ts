@@ -1,6 +1,8 @@
 import { inject, Injectable } from '@angular/core';
 import { Canvas, FabricObject } from 'fabric';
 import { Observable } from 'rxjs';
+import { CANVAS_OBJECTS_EXPORT } from '../../consts/canvas-objects-export';
+import { VariableType } from '../../consts/variables.const';
 import {
   ButtonProperties,
   CanvasObjectProperties,
@@ -18,7 +20,6 @@ import { CanvasEventHandlerService } from './canvas-event-handler.service';
 import { CanvasInitializationService } from './canvas-initialization.service';
 import { CanvasStateService } from './canvas-state.service';
 import { CanvasZoomService, ZoomState } from './canvas-zoom.service';
-import { VariableType } from '../../consts/variables.const';
 
 @Injectable()
 export class CanvasFacadeService {
@@ -186,22 +187,7 @@ export class CanvasFacadeService {
 
   exportTemplateToJson() {
     const canvas = this.stateService.getCanvas();
-    const objects = canvas.toObject([
-      'colorPreset',
-      'bgColorPreset',
-      'attachments',
-      'customMetadata',
-      'clipPath',
-      'stroke',
-      'strokeWidth',
-      'borderColor',
-      'cornerStyle',
-      'cornerColor',
-      'transparentCorners',
-      'cornerSize',
-      'lockRotation',
-      'lockScalingFlip'
-    ]);
+    const objects = canvas.toObject(CANVAS_OBJECTS_EXPORT);
 
     return JSON.stringify(objects);
   }

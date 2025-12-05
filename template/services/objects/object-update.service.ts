@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { FabricImage, FabricObject, Group, IText, Rect, Textbox } from 'fabric';
+import { FabricObject, Group, IText, Rect, Textbox } from 'fabric';
 import { UpdateImageSourceCommand } from '../../commands/image-source.command';
 import { UpdateMultiObjectPropsCommand } from '../../commands/update-multi-object-props.command';
 import { UpdatePropertiesCommand } from '../../commands/update-object.command';
@@ -37,10 +37,7 @@ export class ObjectUpdateService {
         break;
 
       case VariableType.IMAGE:
-        this.updateImageProperties(
-          activeObject as FabricImage,
-          properties as Partial<ImageProperties>
-        );
+        this.updateImageProperties(activeObject as Rect, properties as Partial<ImageProperties>);
         break;
 
       case VariableType.BUTTON:
@@ -56,94 +53,79 @@ export class ObjectUpdateService {
     }
   }
 
-  private updateImageProperties(imageObj: FabricImage, properties: Partial<ImageProperties>): void {
+  private updateImageProperties(imageRect: Rect, properties: Partial<ImageProperties>): void {
     const canvas = this.stateService.getCanvas();
-    const newProperties: Record<string, any> = {};
 
-    const addProp = (key: string, value: any) => {
-      if (value !== undefined) newProperties[key] = value;
-    };
+    // Separate image source changes from other property changes
+    const hasImageSourceChange = properties.attachments !== undefined;
+    const hasOtherChanges = Object.keys(properties).some(
+      (key) => key !== 'attachments' && properties[key as keyof ImageProperties] !== undefined
+    );
 
-    // Update position
-    if (properties.position) {
-      addProp('left', properties.position.x);
-      addProp('top', properties.position.y);
-      addProp('angle', properties.position.angle);
-    }
+    // Step 1: Apply OTHER property changes FIRST (if any)
+    if (hasOtherChanges) {
+      const newProperties: Record<string, any> = {};
 
-    // Update dimensions
-    if (properties.width !== undefined && properties.height !== undefined) {
-      const originalWidth = imageObj.width || 1;
-      const originalHeight = imageObj.height || 1;
+      const addProp = (key: string, value: any) => {
+        if (value !== undefined) newProperties[key] = value;
+      };
 
-      addProp('scaleX', Number(properties.width) / originalWidth);
-      addProp('scaleY', Number(properties.height) / originalHeight);
-    }
-
-    // Update corner radius
-    if (properties.cornerRadius !== undefined) {
-      const radius = properties.cornerRadius || 0;
-
-      if (radius > 0) {
-        const width = imageObj.width || 0;
-        const height = imageObj.height || 0;
-
-        const clipPath = new Rect({
-          width,
-          height,
-          rx: radius,
-          ry: radius,
-          originX: 'center',
-          originY: 'center'
-        });
-
-        addProp('clipPath', clipPath);
-      } else {
-        addProp('clipPath', undefined);
+      // Update position
+      if (properties.position) {
+        addProp('left', properties.position.x);
+        addProp('top', properties.position.y);
+        addProp('angle', properties.position.angle);
       }
-    }
 
-    // Update opacity
-    if (properties.opacity !== undefined) {
-      addProp('opacity', properties.opacity);
-    }
+      // Update dimensions
+      if (properties.width !== undefined && properties.height !== undefined) {
+        const originalWidth = imageRect.width || 1;
+        const originalHeight = imageRect.height || 1;
 
-    // Update metadata
-    if (properties.customData?.metadata) {
-      addProp('customMetadata', properties.customData.metadata);
-    }
+        addProp('scaleX', Number(properties.width) / originalWidth);
+        addProp('scaleY', Number(properties.height) / originalHeight);
+      }
 
-    // Handle image src change separately (async operation)
-    if (properties.attachments !== undefined) {
-      const attachments = properties.attachments;
-      const newSrc = attachments?.length > 0 ? attachments[0].fullPathUrl : DEFAULT_IMAGE_URL;
+      // Update corner radius - IMPORTANT: This must be applied before image change
+      if (properties.cornerRadius !== undefined) {
+        const radius = properties.cornerRadius || 0;
+        addProp('rx', radius);
+        addProp('ry', radius);
+      }
 
-      // Execute regular properties first (if any)
+      // Update opacity
+      if (properties.opacity !== undefined) {
+        addProp('opacity', properties.opacity);
+      }
+
+      // Update metadata
+      if (properties.customData?.metadata) {
+        addProp('customMetadata', properties.customData.metadata);
+      }
+
+      // Execute property changes command
       if (Object.keys(newProperties).length > 0) {
-        const propsCommand = new UpdatePropertiesCommand(canvas, imageObj, newProperties, () => {
-          this.canvasEventHandlerService.emitObjectProperties(imageObj);
+        const propsCommand = new UpdatePropertiesCommand(canvas, imageRect, newProperties, () => {
+          this.canvasEventHandlerService.emitObjectProperties(imageRect);
         });
         this.commandManagerService.execute(propsCommand);
       }
+    }
 
-      const sourceCommand = new UpdateImageSourceCommand(canvas, imageObj, newSrc, attachments, {
+    // Step 2: Then handle image source change (if any)
+    // This will capture the CURRENT state (after step 1) as "old state"
+    if (hasImageSourceChange) {
+      const attachments = properties.attachments ?? [];
+      const newSrc = attachments?.length > 0 ? attachments[0].fullPathUrl : DEFAULT_IMAGE_URL;
+
+      const sourceCommand = new UpdateImageSourceCommand(canvas, imageRect, newSrc, attachments, {
         syncForm: () => {
-          this.canvasEventHandlerService.emitObjectProperties(imageObj);
+          this.canvasEventHandlerService.emitObjectProperties(imageRect);
         }
       });
 
       this.commandManagerService.execute(sourceCommand);
-
-      return;
     }
-
-    // Execute command for all other properties
-    if (Object.keys(newProperties).length === 0) return;
-
-    const command = new UpdatePropertiesCommand(canvas, imageObj, newProperties, () => {
-      this.canvasEventHandlerService.emitObjectProperties(imageObj);
-    });
-    this.commandManagerService.execute(command);
   }
 
   private updateTextProperties(textObj: IText, properties: Partial<TextProperties>): void {
@@ -311,15 +293,16 @@ export class ObjectUpdateService {
     }
 
     // Update metadata
-    if (properties.link !== undefined || properties.customData?.metadata) {
+    if (properties.customData?.metadata) {
       const metadata = { ...(groupObj as any).customMetadata };
-      if (properties.link !== undefined) {
-        metadata.link = properties.link;
-      }
       if (properties.customData?.metadata) {
         Object.assign(metadata, properties.customData.metadata);
       }
       addProp(groupProperties, 'customMetadata', metadata);
+    }
+
+    if (properties.buttonLink !== undefined) {
+      addProp(groupProperties, 'buttonLink', properties.buttonLink);
     }
 
     // Update color presets

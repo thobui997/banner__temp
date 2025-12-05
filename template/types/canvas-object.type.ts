@@ -87,7 +87,7 @@ export interface ButtonProperties extends BaseProperties {
   fontSize: number;
   textAlignment: TextAlignment;
   text: string;
-  link?: string;
+  buttonLink?: string;
 }
 
 export interface ButtonPropertiesFormValues {
@@ -104,6 +104,7 @@ export interface ButtonPropertiesFormValues {
   shape: ButtonShape;
   buttonStyle: ButtonStyle;
   buttonColor: string;
+  buttonLink?: string;
 }
 
 export interface FrameProperties extends BaseProperties {

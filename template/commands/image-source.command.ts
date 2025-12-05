@@ -1,4 +1,4 @@
-import { Canvas, FabricImage, Rect } from 'fabric';
+import { Canvas, FabricImage, Rect, Pattern } from 'fabric';
 import { Command } from '../types/command.type';
 
 export class UpdateImageSourceCommand extends Command {
@@ -12,11 +12,16 @@ export class UpdateImageSourceCommand extends Command {
   private oldTop: number;
   private oldOpacity: number;
   private oldCornerRadius: number;
+
+  // Store new properties at construction time
+  private newWidth = 0;
+  private newHeight = 0;
+
   private syncForm?: () => void;
 
   constructor(
     private canvas: Canvas,
-    private imageObj: FabricImage,
+    private imageRect: Rect,
     private newSrc: string,
     private newAttachments: any,
     options?: {
@@ -25,24 +30,17 @@ export class UpdateImageSourceCommand extends Command {
   ) {
     super();
 
-    // Store old values
-    this.oldSrc = imageObj.getSrc();
-    this.oldAttachments = imageObj.get('attachments');
-    this.oldWidth = imageObj.width || 0;
-    this.oldHeight = imageObj.height || 0;
-    this.oldScaleX = imageObj.scaleX || 1;
-    this.oldScaleY = imageObj.scaleY || 1;
-    this.oldLeft = imageObj.left || 0;
-    this.oldTop = imageObj.top || 0;
-    this.oldOpacity = imageObj.opacity || 1;
-
-    // Store corner radius from clipPath
-    const clipPath = imageObj.clipPath;
-    if (clipPath && clipPath instanceof Rect) {
-      this.oldCornerRadius = clipPath.rx || 0;
-    } else {
-      this.oldCornerRadius = 0;
-    }
+    // Store old values - BEFORE any changes
+    this.oldSrc = imageRect.get('imageSrc') as string;
+    this.oldAttachments = imageRect.get('attachments');
+    this.oldWidth = imageRect.width || 0;
+    this.oldHeight = imageRect.height || 0;
+    this.oldScaleX = imageRect.scaleX || 1;
+    this.oldScaleY = imageRect.scaleY || 1;
+    this.oldLeft = imageRect.left || 0;
+    this.oldTop = imageRect.top || 0;
+    this.oldOpacity = imageRect.opacity || 1;
+    this.oldCornerRadius = imageRect.rx || 0;
 
     this.syncForm = options?.syncForm;
   }
@@ -61,69 +59,79 @@ export class UpdateImageSourceCommand extends Command {
     this.syncForm?.();
   }
 
-  private applySource(src: string, attachments: any, isNewImage: boolean): void {
-    this.imageObj.set('attachments', attachments);
+  private async applySource(src: string, attachments: any, isNewImage: boolean): Promise<void> {
+    // Load image
+    const imgElement = await FabricImage.fromURL(src, { crossOrigin: 'anonymous' });
 
-    this.imageObj.setSrc(src, { crossOrigin: 'anonymous' }).then(() => {
-      if (isNewImage) {
-        // When uploading NEW image: maintain current position and scale
-        // Calculate scale to maintain current display size
-        const currentDisplayWidth = this.oldWidth * this.oldScaleX;
-        const currentDisplayHeight = this.oldHeight * this.oldScaleY;
+    const newImageWidth = imgElement.width || 200;
+    const newImageHeight = imgElement.height || 200;
 
-        const newWidth = this.imageObj.width || 1;
-        const newHeight = this.imageObj.height || 1;
+    if (isNewImage) {
+      // EXECUTE: Upload new image - maintain CURRENT display size and ALL current properties
+      const currentDisplayWidth = this.oldWidth * this.oldScaleX;
+      const currentDisplayHeight = this.oldHeight * this.oldScaleY;
 
-        // Calculate new scale to maintain the same display size
-        const newScaleX = currentDisplayWidth / newWidth;
-        const newScaleY = currentDisplayHeight / newHeight;
+      // Calculate new scale to maintain same display size
+      const newScaleX = currentDisplayWidth / newImageWidth;
+      const newScaleY = currentDisplayHeight / newImageHeight;
 
-        this.imageObj.set({
-          scaleX: newScaleX,
-          scaleY: newScaleY,
-          left: this.oldLeft,
-          top: this.oldTop,
-          opacity: this.oldOpacity
-        });
-
-        // Restore corner radius
-        if (this.oldCornerRadius > 0) {
-          const clipPath = new Rect({
-            width: newWidth,
-            height: newHeight,
-            rx: this.oldCornerRadius,
-            ry: this.oldCornerRadius,
-            originX: 'center',
-            originY: 'center'
-          });
-          this.imageObj.set('clipPath', clipPath);
-        }
-      } else {
-        // When undoing: restore exact old state
-        this.imageObj.set({
-          scaleX: this.oldScaleX,
-          scaleY: this.oldScaleY,
-          left: this.oldLeft,
-          top: this.oldTop,
-          opacity: this.oldOpacity
-        });
-
-        // Restore old corner radius
-        if (this.oldCornerRadius > 0) {
-          const clipPath = new Rect({
-            width: this.oldWidth,
-            height: this.oldHeight,
-            rx: this.oldCornerRadius,
-            ry: this.oldCornerRadius,
-            originX: 'center',
-            originY: 'center'
-          });
-          this.imageObj.set('clipPath', clipPath);
-        }
+      // Store new dimensions for undo
+      if (this.newWidth === 0) {
+        this.newWidth = newImageWidth;
+        this.newHeight = newImageHeight;
       }
 
-      this.imageObj.setCoords();
-      this.canvas.requestRenderAll();
-    });
+      // Create new pattern
+      const newPattern = new Pattern({
+        source: imgElement.getElement(),
+        repeat: 'no-repeat'
+      });
+
+      // Apply ALL properties - preserve everything from before
+      this.imageRect.set({
+        width: newImageWidth,
+        height: newImageHeight,
+        fill: newPattern,
+        scaleX: newScaleX,
+        scaleY: newScaleY,
+        left: this.oldLeft,
+        top: this.oldTop,
+        opacity: this.oldOpacity,
+        rx: this.oldCornerRadius,
+        ry: this.oldCornerRadius,
+        imageSrc: src,
+        attachments: attachments
+      });
+    } else {
+      // UNDO: Restore EXACT old state with old image
+      const oldPattern = new Pattern({
+        source: imgElement.getElement(),
+        repeat: 'no-repeat'
+      });
+
+      // Restore EVERYTHING to old state
+      this.imageRect.set({
+        width: this.oldWidth,
+        height: this.oldHeight,
+        fill: oldPattern,
+        scaleX: this.oldScaleX,
+        scaleY: this.oldScaleY,
+        left: this.oldLeft,
+        top: this.oldTop,
+        opacity: this.oldOpacity,
+        rx: this.oldCornerRadius,
+        ry: this.oldCornerRadius,
+        imageSrc: src,
+        attachments: attachments
+      });
+    }
+
+    this.imageRect.setCoords();
+    this.canvas.requestRenderAll();
+
+    // Sync form after state change
+    if (this.syncForm) {
+      this.syncForm();
+    }
   }
 }

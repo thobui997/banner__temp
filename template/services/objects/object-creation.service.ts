@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { FabricImage, Group, IText, Rect, Textbox } from 'fabric';
+import { FabricImage, Group, IText, Rect, Textbox, Pattern } from 'fabric';
 import { nanoid } from 'nanoid';
 import { AddObjectCommand } from '../../commands/add-object.command';
 import { VariableType } from '../../consts/variables.const';
@@ -62,26 +62,49 @@ export class ObjectCreationService {
   async addImage(src: string) {
     const canvas = this.stateService.getCanvas();
 
-    const imgObj = await FabricImage.fromURL(src, { crossOrigin: 'anonymous' });
+    // Load image first
+    const imgElement = await FabricImage.fromURL(src, { crossOrigin: 'anonymous' });
 
     this.layerCounters.image++;
     const layerName = `Image ${this.layerCounters.image}`;
 
+    // Create a rectangle that will hold the image as pattern
+    const imageRect = new Rect({
+      width: imgElement.width || 200,
+      height: imgElement.height || 200,
+      rx: 0,
+      ry: 0,
+      originX: 'left',
+      originY: 'top',
+    });
+
+    // Apply the image as pattern fill
+    const pattern = new Pattern({
+      source: imgElement.getElement(),
+      repeat: 'no-repeat'
+    });
+
+    imageRect.set('fill', pattern);
+
     // Set custom metadata
-    imgObj.set('customMetadata', {
+    imageRect.set('customMetadata', {
       id: this.generateId(),
       createdAt: Date.now(),
       type: VariableType.IMAGE,
       customName: layerName
     });
 
+    // Store image source and attachments
+    imageRect.set('imageSrc', src);
+    imageRect.set('attachments', []);
+
     // Fit image to frame
-    this.fitImageToFrame(imgObj);
+    this.fitImageToFrame(imageRect);
 
     // Apply frame clipping
-    this.frameManagement.applyFrameClipping(imgObj);
+    this.frameManagement.applyFrameClipping(imageRect);
 
-    const command = new AddObjectCommand(canvas, imgObj);
+    const command = new AddObjectCommand(canvas, imageRect);
     this.commandManager.execute(command);
   }
 
@@ -204,23 +227,23 @@ export class ObjectCreationService {
    * Fit image to frame while maintaining aspect ratio
    * Centers the image within the frame
    */
-  private fitImageToFrame(imageObj: FabricImage): void {
+  private fitImageToFrame(imageRect: Rect): void {
     const frameBounds = this.getFrameBounds();
 
     if (!frameBounds) {
       // No frame, use default position
-      imageObj.set({
+      imageRect.set({
         left: 100,
         top: 100,
         scaleX: 1,
         scaleY: 1
       });
-      imageObj.setCoords();
+      imageRect.setCoords();
       return;
     }
 
-    const originalWidth = imageObj.width || 1;
-    const originalHeight = imageObj.height || 1;
+    const originalWidth = imageRect.width || 1;
+    const originalHeight = imageRect.height || 1;
 
     // Calculate scale to fit image within frame while maintaining aspect ratio
     const scaleX = frameBounds.width / originalWidth;
@@ -234,14 +257,14 @@ export class ObjectCreationService {
     const top = frameBounds.top + (frameBounds.height - scaledHeight) / 2;
 
     // Apply new scale and position
-    imageObj.set({
+    imageRect.set({
       scaleX: scale,
       scaleY: scale,
       left: left,
       top: top
     });
 
-    imageObj.setCoords();
+    imageRect.setCoords();
   }
 
   /**
