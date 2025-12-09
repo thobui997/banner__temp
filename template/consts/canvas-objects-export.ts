@@ -16,5 +16,6 @@ export const CANVAS_OBJECTS_EXPORT = [
   'lockScalingFlip',
   'imageSrc',
   'rx',
-  'ry'
+  'ry',
+  'buttonLink'
 ];

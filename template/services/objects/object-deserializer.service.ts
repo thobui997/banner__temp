@@ -45,6 +45,8 @@ export class ObjectDeserializerService {
     switch (objData.type) {
       case 'IText':
       case 'i-text':
+      case 'Textbox':
+      case 'textbox':
         return this.deserializeText(objData);
 
       case 'Rect':
@@ -72,17 +74,16 @@ export class ObjectDeserializerService {
   /**
    * Deserialize IText
    */
-  private deserializeText(objData: any): IText {
-    // Extract custom properties before creating object
+  private deserializeText(objData: any): Textbox {
     const colorPreset = objData.colorPreset;
     const customMetadata = objData.customMetadata;
 
-    // Create IText with standard properties
-    const textObj = new IText(objData.text || '', {
+    const textObj = new Textbox(objData.text || '', {
       left: objData.left,
       top: objData.top,
+      width: objData.width || 150,
       fontSize: objData.fontSize || 24,
-      fontFamily: objData.fontFamily || 'Arial, sans-serif',
+      fontFamily: objData.fontFamily || 'Roboto',
       fontWeight: objData.fontWeight || 400,
       fontStyle: objData.fontStyle,
       fill: objData.fill || '#000000',
@@ -94,17 +95,16 @@ export class ObjectDeserializerService {
       visible: objData.visible !== false,
       flipX: objData.flipX || false,
       flipY: objData.flipY || false,
-      // Add other properties as needed
+      splitByGrapheme: true,
       lineHeight: objData.lineHeight,
       charSpacing: objData.charSpacing,
       underline: objData.underline,
       overline: objData.overline,
       linethrough: objData.linethrough,
-      lockScalingX: true,
-      lockScalingY: true,
       lockScalingFlip: true,
       lockSkewingX: true,
-      lockSkewingY: true
+      lockSkewingY: true,
+      lockScalingY: true
     });
 
     if (colorPreset) {
@@ -114,6 +114,7 @@ export class ObjectDeserializerService {
     if (customMetadata) {
       textObj.set('customMetadata', customMetadata);
     }
+
     if (objData.clipPath) {
       const clipPath = this.deserializeClipPath(objData.clipPath);
       if (clipPath) {

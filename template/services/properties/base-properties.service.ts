@@ -75,12 +75,7 @@ export class BasePropertiesService {
     onPropertiesReceived?: (props: TCanvas) => void
   ): void {
     this.canvasState.selectedObjectProperties$
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        distinctUntilChanged((prev, curr) => {
-          return JSON.stringify(prev) === JSON.stringify(curr);
-        })
-      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((props) => {
         if (!props || props.type !== objectType) return;
 

@@ -45,6 +45,7 @@ export class ObjectPropertiesExtractorService {
         y: Math.round(textObj.top || 0),
         angle: Math.round(textObj.angle || 0)
       },
+      width: textObj.width || 200,
       textColor: (textObj.fill as string) || '#000000',
       fontFamily: textObj.fontFamily || 'Noto Sans',
       fontWeight: (textObj.fontWeight as number) || 400,

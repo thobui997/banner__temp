@@ -36,65 +36,67 @@ import { Layer } from '../../types/layer.type';
           </button>
         </div>
 
-        <!-- general information section -->
-        <div class="px-6 pt-2">
-          <details open>
-            <summary>
-              <div class="flex items-center gap-2 cursor-pointer">
-                <gsf-icon-svg [icon]="ICON_BOLD_ARROW_DOWN" />
-                <span class="text-text-primary-2 font-semibold">General Information</span>
-              </div>
-            </summary>
+        <div class="flex-1 overflow-y-auto flex flex-col">
+          <!-- general information section -->
+          <div class="px-6 pt-2">
+            <details open>
+              <summary>
+                <div class="flex items-center gap-2 cursor-pointer">
+                  <gsf-icon-svg [icon]="ICON_BOLD_ARROW_DOWN" />
+                  <span class="text-text-primary-2 font-semibold">General Information</span>
+                </div>
+              </summary>
 
-            <form class="py-4 flex flex-col gap-4" [formGroup]="form">
-              <gsf-form-field label="Template Name">
-                <input
-                  slot="input"
-                  type="text"
-                  gsfInput
-                  formControlName="name"
-                  readonly
-                  class="bg-gray-50"
-                  [title]="form.get('name')?.value"
-                />
-              </gsf-form-field>
+              <form class="py-4 flex flex-col gap-4" [formGroup]="form">
+                <gsf-form-field label="Template Name">
+                  <input
+                    slot="input"
+                    type="text"
+                    gsfInput
+                    formControlName="name"
+                    readonly
+                    class="bg-gray-50"
+                    [title]="form.get('name')?.value"
+                  />
+                </gsf-form-field>
 
-              <gsf-form-field label="Description">
-                <textarea
-                  slot="input"
-                  gsfInput
-                  rows="5"
-                  class="resize-none bg-gray-50"
-                  formControlName="description"
-                  readonly
-                ></textarea>
-              </gsf-form-field>
-            </form>
-          </details>
-        </div>
-
-        <!-- layer section -->
-        <div class="flex-1 flex flex-col overflow-hidden">
-          <div class="border-t border-b border-stroke-primary-2">
-            <div class="px-6 py-[14px] font-semibold text-text-primary-2">Layers</div>
+                <gsf-form-field label="Description">
+                  <textarea
+                    slot="input"
+                    gsfInput
+                    rows="5"
+                    class="resize-none bg-gray-50"
+                    formControlName="description"
+                    readonly
+                  ></textarea>
+                </gsf-form-field>
+              </form>
+            </details>
           </div>
 
-          <div class="flex-1 flex-shrink-0 flex flex-col overflow-y-auto">
-            @for (layer of layers; track layer.id) {
-              <div
-                class="flex items-center justify-between px-2 py-[10px] cursor-pointer"
-                [class.bg-fill-cta-others-hover]="isSelected(layer.id)"
-                (click)="selectLayer(layer.id)"
-              >
-                <div class="flex gap-2 items-center">
-                  <gsf-icon-svg
-                    [icon]="ICON_Drag_OUTLINE"
-                    class="text-icon-disable cursor-not-allowed"
-                  />
-                  <span>{{ layer.name }}</span>
+          <!-- layer section -->
+          <div class="flex-1 flex flex-col">
+            <div class="border-t border-b border-stroke-primary-2">
+              <div class="px-6 py-[14px] font-semibold text-text-primary-2">Layers</div>
+            </div>
+
+            <div class="flex-1 flex-shrink-0 flex flex-col overflow-y-auto">
+              @for (layer of layers; track layer.id) {
+                <div
+                  class="flex items-center justify-between px-2 py-[10px] cursor-pointer"
+                  [class.bg-fill-cta-others-hover]="isSelected(layer.id)"
+                  (click)="selectLayer(layer.id)"
+                >
+                  <div class="flex gap-2 items-center">
+                    <gsf-icon-svg
+                      [icon]="ICON_Drag_OUTLINE"
+                      class="text-icon-disable cursor-not-allowed"
+                    />
+                    <span>{{ layer.name }}</span>
+                  </div>
                 </div>
-              </div>
-            }
+              }
+            </div>
           </div>
         </div>
       </div>

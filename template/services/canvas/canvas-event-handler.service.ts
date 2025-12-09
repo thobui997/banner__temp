@@ -100,7 +100,6 @@ export class CanvasEventHandlerService {
       if (!this.isFrame(obj)) {
         this.frameManagement.applyFrameClipping(obj);
       } else {
-        // Enforce aspect ratio for frame during scaling
         this.frameManagement.enforceAspectRatio(obj);
         this.frameManagement.updateFrameBounds(obj);
         this.frameManagement.applyClippingToAllObjects();

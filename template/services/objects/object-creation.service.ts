@@ -25,21 +25,22 @@ export class ObjectCreationService {
     const canvas = this.stateService.getCanvas();
 
     // Get constrained position within frame
-    const position = this.frameManagement.getConstrainedPosition(100, 30);
+    const position = this.frameManagement.getConstrainedPosition(200, 50);
 
     this.layerCounters.text++;
     const layerName = `Text ${this.layerCounters.text}`;
 
-    const textObj = new IText(text, {
+    const textObj = new Textbox(text, {
       left: position.left,
       top: position.top,
+      width: 150,
       fontSize: 24,
       fill: '#000000',
-      fontFamily: 'Arial',
+      fontFamily: 'Roboto',
       fontWeight: 400,
-      splitByGrapheme: false,
+      splitByGrapheme: true,
       lockScalingFlip: true,
-      lockScalingX: true,
+      lockScalingX: false,
       lockScalingY: true,
       lockSkewingX: true,
       lockSkewingY: true,
@@ -75,7 +76,7 @@ export class ObjectCreationService {
       rx: 0,
       ry: 0,
       originX: 'left',
-      originY: 'top',
+      originY: 'top'
     });
 
     // Apply the image as pattern fill

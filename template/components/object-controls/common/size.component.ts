@@ -14,7 +14,7 @@ import { InputDirective, InputGroupComponent, InputNumberDirective } from '@gsf/
           [hasFormat]="false"
           appSize="sm"
           formControlName="width"
-          class="w-full"
+          class="w-full text-right"
         />
       </gsf-input-group>
 
@@ -25,7 +25,7 @@ import { InputDirective, InputGroupComponent, InputNumberDirective } from '@gsf/
           [hasFormat]="false"
           appSize="sm"
           formControlName="height"
-          class="w-full"
+          class="w-full text-right"
         />
       </gsf-input-group>
     </div>

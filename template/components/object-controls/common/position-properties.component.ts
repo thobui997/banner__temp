@@ -55,12 +55,26 @@ import { ControlContainer, ReactiveFormsModule } from '@angular/forms';
 
       <!-- X Position -->
       <gsf-input-group [appPrefix]="xPrefix">
-        <input gsfInput gsfInputNumber [hasFormat]="false" appSize="sm" formControlName="x" />
+        <input
+          gsfInput
+          gsfInputNumber
+          [hasFormat]="false"
+          appSize="sm"
+          formControlName="x"
+          class="text-right"
+        />
       </gsf-input-group>
 
       <!-- Y Position -->
       <gsf-input-group [appPrefix]="yPrefix">
-        <input gsfInput gsfInputNumber [hasFormat]="false" appSize="sm" formControlName="y" />
+        <input
+          gsfInput
+          gsfInputNumber
+          [hasFormat]="false"
+          appSize="sm"
+          formControlName="y"
+          class="text-right"
+        />
       </gsf-input-group>
 
       <!-- Rotation -->
@@ -73,6 +87,7 @@ import { ControlContainer, ReactiveFormsModule } from '@angular/forms';
           [hasFormat]="false"
           [min]="0"
           [max]="360"
+          class="text-right"
         />
       </gsf-input-group>
 

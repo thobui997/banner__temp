@@ -60,6 +60,7 @@ export interface TextProperties extends BaseProperties {
   fontSize: number;
   textAlignment: TextAlignment;
   text: string;
+  width?: number;
 }
 
 export interface ImageProperties extends BaseProperties {

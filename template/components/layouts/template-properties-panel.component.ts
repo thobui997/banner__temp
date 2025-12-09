@@ -65,7 +65,7 @@ import { Layer } from '../../types/layer.type';
                     gsfInput
                     placeholder="Enter Template Name"
                     formControlName="name"
-                    maxlength="50"
+                    maxlength="100"
                   />
                   <app-form-field-error slot="error" [control]="form.get('name')" />
                 </gsf-form-field>

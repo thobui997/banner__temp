@@ -81,36 +81,6 @@ export class FrameManagementService {
   }
 
   /**
-   * Enforce aspect ratio during scaling
-   * This should be called in the scaling event handler
-   */
-  enforceAspectRatio(frame: FabricObject): void {
-    const metadata = frame.get('customMetadata') as any;
-    const targetAspectRatio = metadata?.aspectRatio;
-
-    if (!targetAspectRatio) return;
-
-    const currentWidth = (frame.width || 0) * (frame.scaleX || 1);
-    const currentHeight = (frame.height || 0) * (frame.scaleY || 1);
-    const currentAspectRatio = currentWidth / currentHeight;
-
-    // Check if aspect ratio has deviated
-    const tolerance = 0.01; // 1% tolerance
-    if (Math.abs(currentAspectRatio - targetAspectRatio) > tolerance) {
-      // Adjust scaleY to match the target aspect ratio based on current scaleX
-      const baseWidth = frame.width || 1;
-      const baseHeight = frame.height || 1;
-
-      // Calculate what scaleY should be to maintain aspect ratio
-      const targetHeight = currentWidth / targetAspectRatio;
-      const newScaleY = targetHeight / baseHeight;
-
-      frame.set('scaleY', newScaleY);
-      frame.setCoords();
-    }
-  }
-
-  /**
    * Update aspect ratio in metadata
    */
   updateAspectRatio(frame: FabricObject, aspectRatio: number): void {
@@ -250,124 +220,31 @@ export class FrameManagementService {
     return { left, top };
   }
 
-  /**
-   * Resize frame with aspect ratio lock and update all object clipping
-   */
-  resizeFrame(newWidth: number, newHeight: number, maintainAspectRatio = true): void {
-    const frame = this.stateService.getFrameObject();
-    if (!frame) return;
+  enforceAspectRatio(frame: FabricObject) {
+    const metadata = frame.get('customMetadata') as any;
+    const targetAspectRatio = metadata?.aspectRatio;
+    if (!targetAspectRatio) return;
 
-    const canvas = this.stateService.getCanvas();
+    let newW = (frame.width || 0) * (frame.scaleX || 1);
+    let newH = (frame.height || 0) * (frame.scaleY || 1);
 
-    // Store old bounds for comparison
-    const oldBounds = this.getFrameBounds();
+    const currentAspect = newW / newH;
 
-    if (maintainAspectRatio && oldBounds) {
-      // Calculate aspect ratio
-      const aspectRatio = oldBounds.width / oldBounds.height;
-
-      // Adjust dimensions to maintain aspect ratio
-      const widthBasedHeight = newWidth / aspectRatio;
-      const heightBasedWidth = newHeight * aspectRatio;
-
-      // Choose the dimension that fits best
-      if (Math.abs(newHeight - widthBasedHeight) < Math.abs(newWidth - heightBasedWidth)) {
-        newHeight = widthBasedHeight;
+    if (Math.abs(currentAspect - targetAspectRatio) > 0.0001) {
+      if (Math.abs(frame.scaleX - 1) > Math.abs(frame.scaleY - 1)) {
+        newH = newW / targetAspectRatio;
       } else {
-        newWidth = heightBasedWidth;
+        newW = newH * targetAspectRatio;
       }
     }
 
-    // Update frame dimensions
     frame.set({
+      width: newW,
+      height: newH,
       scaleX: 1,
       scaleY: 1
     });
 
-    (frame as Rect).set({
-      width: newWidth,
-      height: newHeight
-    });
-
-    frame.setCoords();
-
-    // Update bounds
-    this.updateFrameBounds(frame);
-
-    // Reapply clipping to all objects with new frame bounds
-    this.applyClippingToAllObjects();
-
-    // Optional: Adjust objects that are now outside frame
-    if (oldBounds) {
-      this.handleFrameResize(oldBounds);
-    }
-
-    canvas.requestRenderAll();
-  }
-
-  /**
-   * Handle frame resize - optionally adjust objects
-   */
-  private handleFrameResize(oldBounds: FrameBounds): void {
-    const canvas = this.stateService.getCanvas();
-    const frame = this.stateService.getFrameObject();
-    const newBounds = this.getFrameBounds();
-
-    if (!newBounds) return;
-
-    canvas.getObjects().forEach((obj) => {
-      if (obj === frame) return;
-
-      const objBounds = obj.getBoundingRect();
-
-      // Check if object is now outside frame
-      const isOutside =
-        objBounds.left < newBounds.left ||
-        objBounds.top < newBounds.top ||
-        objBounds.left + objBounds.width > newBounds.left + newBounds.width ||
-        objBounds.top + objBounds.height > newBounds.top + newBounds.height;
-
-      if (isOutside) {
-        // Option 1: Just let clipping handle it (objects stay where they are)
-        // Option 2: Scale down objects that are too large
-        // Option 3: Reposition objects to fit within frame
-
-        // Implementing Option 3 here:
-        this.repositionObjectToFitFrame(obj, newBounds);
-      }
-    });
-  }
-
-  /**
-   * Reposition object to fit within frame bounds
-   */
-  private repositionObjectToFitFrame(obj: FabricObject, frameBounds: FrameBounds): void {
-    const objBounds = obj.getBoundingRect();
-    let left = obj.left || 0;
-    let top = obj.top || 0;
-    let needsUpdate = false;
-
-    // Check and adjust horizontal position
-    if (objBounds.left < frameBounds.left) {
-      left += frameBounds.left - objBounds.left;
-      needsUpdate = true;
-    } else if (objBounds.left + objBounds.width > frameBounds.left + frameBounds.width) {
-      left -= objBounds.left + objBounds.width - (frameBounds.left + frameBounds.width);
-      needsUpdate = true;
-    }
-
-    // Check and adjust vertical position
-    if (objBounds.top < frameBounds.top) {
-      top += frameBounds.top - objBounds.top;
-      needsUpdate = true;
-    } else if (objBounds.top + objBounds.height > frameBounds.top + frameBounds.height) {
-      top -= objBounds.top + objBounds.height - (frameBounds.top + frameBounds.height);
-      needsUpdate = true;
-    }
-
-    if (needsUpdate) {
-      obj.set({ left, top });
-      obj.setCoords();
-    }
+    frame.set('dirty', true);
   }
 }

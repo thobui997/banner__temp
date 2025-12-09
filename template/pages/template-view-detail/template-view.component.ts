@@ -135,19 +135,21 @@ export class TemplateViewComponent extends Destroyer implements OnInit {
 
     // Disable selection
     canvas.selection = false;
-    canvas.skipTargetFind = true;
 
     // Make all objects non-selectable and non-interactive
     canvas.forEachObject((obj) => {
-      obj.selectable = false;
+      obj.selectable = true;
       obj.evented = false;
-      obj.hasControls = false;
-      obj.hasBorders = false;
+      obj.hasControls = true;
+      obj.hasBorders = true;
       obj.lockMovementX = true;
       obj.lockMovementY = true;
       obj.lockRotation = true;
       obj.lockScalingX = true;
       obj.lockScalingY = true;
+      obj.lockScalingFlip = true;
+      obj.lockSkewingX = true;
+      obj.lockSkewingY = true;
     });
 
     // Set cursor to default
