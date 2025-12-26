@@ -5,12 +5,15 @@ import { Position, TextAlignment } from '../../../types';
 import { CanvasEventHandlerService } from '../canvas/canvas-event-handler.service';
 import { CanvasStateService } from '../canvas/canvas-state.service';
 import { CommandManagerService } from '../command/command-manager.service';
+import { FontPreloaderService } from '@gsf/admin/app/shared/services/font-preloader.service';
+import { UpdateTextSelectionStylesCommand } from '../../../commands/template-editor-commands/update-text-selection-styles.command';
 
 @Injectable()
 export class TextUpdateService {
   private stateService = inject(CanvasStateService);
   private commandManager = inject(CommandManagerService);
   private canvasEventHandler = inject(CanvasEventHandlerService);
+  private fontPreloader = inject(FontPreloaderService);
 
   /**
    * Update text position (x, y, angle)
@@ -52,16 +55,33 @@ export class TextUpdateService {
   /**
    * Update text color
    */
-  updateColor(textObj: FabricObject, color: string): void {
+  updateColor(textObj: IText | Textbox, color: string): void {
     const canvas = this.stateService.getCanvas();
+    const selectionRange = this.getSelectionRange(textObj);
 
-    if (textObj.fill === color) return;
+    if (selectionRange) {
+      // Apply color to selection only using new command
+      const command = new UpdateTextSelectionStylesCommand(
+        canvas,
+        textObj,
+        { fill: color },
+        selectionRange,
+        () => {
+          this.canvasEventHandler.emitObjectProperties(textObj);
+        }
+      );
 
-    const command = new UpdatePropertiesCommand(canvas, textObj, { fill: color }, () => {
-      this.canvasEventHandler.emitObjectProperties(textObj);
-    });
+      this.commandManager.execute(command);
+    } else {
+      // Apply to entire text
+      if (textObj.fill === color) return;
 
-    this.commandManager.execute(command);
+      const command = new UpdatePropertiesCommand(canvas, textObj, { fill: color }, () => {
+        this.canvasEventHandler.emitObjectProperties(textObj);
+      });
+
+      this.commandManager.execute(command);
+    }
   }
 
   async updateFont(
@@ -73,31 +93,66 @@ export class TextUpdateService {
     }
   ): Promise<void> {
     const canvas = this.stateService.getCanvas();
-    const changedProps: Record<string, any> = {};
+    const selectionRange = this.getSelectionRange(textObj);
 
-    if (font.fontFamily !== undefined && textObj.fontFamily !== font.fontFamily) {
-      changedProps['fontFamily'] = font.fontFamily;
+    if (selectionRange) {
+      // Apply font to selection only
+      const styles: Record<string, any> = {};
+
+      if (font.fontFamily !== undefined) {
+        await this.fontPreloader.loadFontOnDemand(font.fontFamily);
+        await this.fontPreloader.waitForFontsReady();
+        styles['fontFamily'] = font.fontFamily;
+      }
+
+      if (font.fontWeight !== undefined) {
+        styles['fontWeight'] = font.fontWeight;
+      }
+
+      if (font.fontSize !== undefined) {
+        styles['fontSize'] = font.fontSize;
+      }
+
+      if (Object.keys(styles).length === 0) return;
+
+      const command = new UpdateTextSelectionStylesCommand(
+        canvas,
+        textObj,
+        styles,
+        selectionRange,
+        () => {
+          this.canvasEventHandler.emitObjectProperties(textObj);
+        }
+      );
+
+      this.commandManager.execute(command);
+    } else {
+      // Apply to entire text
+      const changedProps: Record<string, any> = {};
+
+      if (font.fontFamily !== undefined && textObj.fontFamily !== font.fontFamily) {
+        await this.fontPreloader.loadFontOnDemand(font.fontFamily);
+        await this.fontPreloader.waitForFontsReady();
+        changedProps['fontFamily'] = font.fontFamily;
+      }
+
+      if (font.fontWeight !== undefined && textObj.fontWeight !== font.fontWeight) {
+        changedProps['fontWeight'] = font.fontWeight;
+      }
+
+      if (font.fontSize !== undefined && textObj.fontSize !== font.fontSize) {
+        changedProps['fontSize'] = font.fontSize;
+      }
+
+      if (Object.keys(changedProps).length === 0) return;
+
+      const command = new UpdatePropertiesCommand(canvas, textObj, changedProps, () => {
+        this.canvasEventHandler.emitObjectProperties(textObj);
+      });
+
+      this.commandManager.execute(command);
     }
-
-    if (font.fontWeight !== undefined && textObj.fontWeight !== font.fontWeight) {
-      changedProps['fontWeight'] = font.fontWeight;
-    }
-
-    if (font.fontSize !== undefined && textObj.fontSize !== font.fontSize) {
-      changedProps['fontSize'] = font.fontSize;
-    }
-
-    if (Object.keys(changedProps).length === 0) return;
-
-
-    // Now apply the changes - font is guaranteed to be loaded
-    const command = new UpdatePropertiesCommand(canvas, textObj, changedProps, () => {
-      this.canvasEventHandler.emitObjectProperties(textObj);
-    });
-
-    this.commandManager.execute(command);
   }
-
 
   /**
    * Update text alignment
@@ -107,9 +162,19 @@ export class TextUpdateService {
 
     if (textObj.textAlign === alignment) return;
 
+    // Disable caching
+    textObj.objectCaching = false;
+
     const command = new UpdatePropertiesCommand(canvas, textObj, { textAlign: alignment }, () => {
       textObj.initDimensions();
       textObj.setCoords();
+      textObj.dirty = true;
+
+      requestAnimationFrame(() => {
+        textObj.objectCaching = true;
+        canvas.requestRenderAll();
+      });
+
       this.canvasEventHandler.emitObjectProperties(textObj);
     });
 
@@ -124,9 +189,19 @@ export class TextUpdateService {
 
     if (textObj.text === text) return;
 
+    // Disable caching
+    textObj.objectCaching = false;
+
     const command = new UpdatePropertiesCommand(canvas, textObj, { text }, () => {
       textObj.initDimensions();
       textObj.setCoords();
+      textObj.dirty = true;
+
+      requestAnimationFrame(() => {
+        textObj.objectCaching = true;
+        canvas.requestRenderAll();
+      });
+
       this.canvasEventHandler.emitObjectProperties(textObj);
     });
 
@@ -171,8 +246,27 @@ export class TextUpdateService {
     this.commandManager.execute(command);
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  /**
+   * Check if text has selection (highlighted text)
+   */
+  private hasTextSelection(textObj: IText | Textbox): boolean {
+    return (
+      textObj.isEditing &&
+      textObj.selectionStart !== undefined &&
+      textObj.selectionEnd !== undefined &&
+      textObj.selectionStart !== textObj.selectionEnd
+    );
   }
 
+  /**
+   * Get selection range
+   */
+  private getSelectionRange(textObj: IText | Textbox): { start: number; end: number } | null {
+    if (!this.hasTextSelection(textObj)) return null;
+
+    return {
+      start: textObj.selectionStart,
+      end: textObj.selectionEnd
+    };
+  }
 }
