@@ -1,0 +1,74 @@
+<app-page-layout>
+  <ng-template #pageHeader>
+    <div class="flex justify-between">
+      <app-page-title heading="Template"></app-page-title>
+      <ng-container *isGrantedByPermissions="[PermissionEnum['Template.Create']]">
+        <button gsfButton (click)="goToCreateTemplaePage()">
+          <gsf-icon-svg [icon]="ICON_ADD_OUTLINE" /> Add Template
+        </button>
+      </ng-container>
+    </div>
+  </ng-template>
+
+  <ng-container page-content>
+    <app-page-list-wrapper
+      [showPagination]="true"
+      [filterConfiguration]="filterConfiguration()"
+      searchPlaceholder="Search Template"
+      headerClasses="flex items-center gap-3 p-4 pb-5"
+      searchFilterWapperClasses="!p-0"
+      classSearchBox="w-72"
+      #pageListWrapper
+    >
+      <ng-container table-content>
+        @if (sourceList$ | async; as vmList) {
+          <app-table
+            #tableInstance
+            rowClassName="cursor-pointer"
+            [data]="vmList || []"
+            [columns]="tableColumns"
+            [searchKey]="pageListWrapper.searchTerm"
+            [countFilter]="pageListWrapper.countFilter"
+            (rowClick)="goToView($event)"
+            tableClass="!border-separate !border-spacing-0"
+          >
+            <ng-template appCellDef="thumbnailFile" let-row>
+              @if (row?.thumbnailFile) {
+                <div class="w-[111px] aspect-video">
+                  <img
+                    [src]="row?.thumbnailFile?.fullPathUrl"
+                    class="w-full h-full object-contain"
+                    alt="thumnail"
+                    width="111"
+                    height="74"
+                  />
+                </div>
+              }
+            </ng-template>
+
+            <ng-template appCellDef="createdBy" let-row>
+              <div class="flex flex-col gap-1">
+                <span class="text-sm text-text-primary-2 font-medium">{{ row.createdByName }}</span>
+                <span class="text-sm text-text-secondary">
+                  {{ row.createdOn | date: 'dd/MM/yyyy hh:mma' | lowercase }}
+                </span>
+              </div>
+            </ng-template>
+
+            <ng-template appCellDef="action" let-row>
+              <div class="flex items-center">
+                <ng-container *isGrantedByPermissions="[PermissionEnum['Template.Edit']]">
+                  <app-edit-button (edit)="goToEditTemplate(row.id, $event)" />
+                </ng-container>
+
+                <ng-container *isGrantedByPermissions="[PermissionEnum['Template.Delete']]">
+                  <app-delete-button (delete)="deleteTemplate(row.id, $event)" />
+                </ng-container>
+              </div>
+            </ng-template>
+          </app-table>
+        }
+      </ng-container>
+    </app-page-list-wrapper>
+  </ng-container>
+</app-page-layout>
