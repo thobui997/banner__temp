@@ -45,6 +45,7 @@ export class UpdatePropertiesCommand extends Command {
       this.object.set(key as any, value);
     });
 
+    this.object.set('dirty', true);
     this.object.setCoords();
     this.canvas.renderAll();
   }
