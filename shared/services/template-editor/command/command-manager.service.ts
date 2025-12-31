@@ -2,12 +2,6 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { ICommand } from '../../../types';
 
-/**
- * Command Manager Service
- *
- * Implements Command Pattern for undo/redo.
- * Maintains two stacks: undo and redo.
- */
 @Injectable()
 export class CommandManagerService {
   private undoStack: ICommand[] = [];
@@ -23,8 +17,8 @@ export class CommandManagerService {
   /**
    * Execute a command and add to undo stack
    */
-  execute(command: ICommand): void {
-    command.execute();
+  async execute(command: ICommand) {
+    await command.execute();
 
     this.undoStack.push(command);
     this.redoStack = []; // Clear redo stack on new action
@@ -56,11 +50,11 @@ export class CommandManagerService {
   /**
    * Undo last command
    */
-  undo(): void {
+  async undo() {
     const command = this.undoStack.pop();
     if (!command) return;
 
-    command.undo();
+    await command.undo();
     this.redoStack.push(command);
     this.updateState();
   }
@@ -68,11 +62,11 @@ export class CommandManagerService {
   /**
    * Redo last undone command
    */
-  redo(): void {
+  async redo() {
     const command = this.redoStack.pop();
     if (!command) return;
 
-    command.redo();
+    await command.redo();
     this.undoStack.push(command);
     this.updateState();
   }
