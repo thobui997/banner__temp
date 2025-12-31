@@ -96,21 +96,16 @@ export class TextUpdateService {
     const selectionRange = this.getSelectionRange(textObj);
 
     if (selectionRange) {
+      // Apply font to selection only
       const styles: Record<string, any> = {};
 
       if (font.fontFamily !== undefined) {
-        // Load font with specific weight
-        const weight = font.fontWeight ?? (textObj.fontWeight as number) ?? 400;
-        await this.fontPreloader.loadFontOnDemand(font.fontFamily, weight);
+        await this.fontPreloader.loadFontOnDemand(font.fontFamily);
         await this.fontPreloader.waitForFontsReady();
         styles['fontFamily'] = font.fontFamily;
       }
 
       if (font.fontWeight !== undefined) {
-        // Load font with new weight
-        const family = font.fontFamily ?? textObj.fontFamily ?? 'Arial';
-        await this.fontPreloader.loadFontOnDemand(family, font.fontWeight);
-        await this.fontPreloader.waitForFontsReady();
         styles['fontWeight'] = font.fontWeight;
       }
 
@@ -132,19 +127,16 @@ export class TextUpdateService {
 
       this.commandManager.execute(command);
     } else {
+      // Apply to entire text
       const changedProps: Record<string, any> = {};
 
       if (font.fontFamily !== undefined && textObj.fontFamily !== font.fontFamily) {
-        const weight = font.fontWeight ?? (textObj.fontWeight as number) ?? 400;
-        await this.fontPreloader.loadFontOnDemand(font.fontFamily, weight);
+        await this.fontPreloader.loadFontOnDemand(font.fontFamily);
         await this.fontPreloader.waitForFontsReady();
         changedProps['fontFamily'] = font.fontFamily;
       }
 
       if (font.fontWeight !== undefined && textObj.fontWeight !== font.fontWeight) {
-        const family = font.fontFamily ?? textObj.fontFamily ?? 'Arial';
-        await this.fontPreloader.loadFontOnDemand(family, font.fontWeight);
-        await this.fontPreloader.waitForFontsReady();
         changedProps['fontWeight'] = font.fontWeight;
       }
 
