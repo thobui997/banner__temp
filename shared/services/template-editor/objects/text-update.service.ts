@@ -5,15 +5,14 @@ import { Position, TextAlignment } from '../../../types';
 import { CanvasEventHandlerService } from '../canvas/canvas-event-handler.service';
 import { CanvasStateService } from '../canvas/canvas-state.service';
 import { CommandManagerService } from '../command/command-manager.service';
-import { FontPreloaderService } from '@gsf/admin/app/shared/services/font-preloader.service';
 import { UpdateTextSelectionStylesCommand } from '../../../commands/template-editor-commands/update-text-selection-styles.command';
+import { UpdateFontCommand } from '../../../commands/template-editor-commands/update-font.command';
 
 @Injectable()
 export class TextUpdateService {
   private stateService = inject(CanvasStateService);
   private commandManager = inject(CommandManagerService);
   private canvasEventHandler = inject(CanvasEventHandlerService);
-  private fontPreloader = inject(FontPreloaderService);
 
   /**
    * Update text position (x, y, angle)
@@ -100,8 +99,6 @@ export class TextUpdateService {
       const styles: Record<string, any> = {};
 
       if (font.fontFamily !== undefined) {
-        await this.fontPreloader.loadFontOnDemand(font.fontFamily);
-        await this.fontPreloader.waitForFontsReady();
         styles['fontFamily'] = font.fontFamily;
       }
 
@@ -127,30 +124,42 @@ export class TextUpdateService {
 
       this.commandManager.execute(command);
     } else {
-      // Apply to entire text
-      const changedProps: Record<string, any> = {};
+      const hasChanges =
+        (font.fontFamily !== undefined && textObj.fontFamily !== font.fontFamily) ||
+        (font.fontWeight !== undefined && textObj.fontWeight !== font.fontWeight) ||
+        (font.fontSize !== undefined && textObj.fontSize !== font.fontSize);
 
-      if (font.fontFamily !== undefined && textObj.fontFamily !== font.fontFamily) {
-        await this.fontPreloader.loadFontOnDemand(font.fontFamily);
-        await this.fontPreloader.waitForFontsReady();
-        changedProps['fontFamily'] = font.fontFamily;
+      if (!hasChanges) return;
+
+      const hasFontChange =
+        (font.fontFamily !== undefined && textObj.fontFamily !== font.fontFamily) ||
+        (font.fontWeight !== undefined && textObj.fontWeight !== font.fontWeight);
+
+      if (hasFontChange) {
+        const command = new UpdateFontCommand(
+          canvas,
+          textObj,
+          font.fontFamily ?? textObj.fontFamily,
+          font.fontWeight ?? textObj.fontWeight,
+          font.fontSize,
+          () => {
+            this.canvasEventHandler.emitObjectProperties(textObj);
+          }
+        );
+
+        this.commandManager.execute(command);
+      } else {
+        const command = new UpdatePropertiesCommand(
+          canvas,
+          textObj,
+          { fontSize: font.fontSize },
+          () => {
+            this.canvasEventHandler.emitObjectProperties(textObj);
+          }
+        );
+
+        this.commandManager.execute(command);
       }
-
-      if (font.fontWeight !== undefined && textObj.fontWeight !== font.fontWeight) {
-        changedProps['fontWeight'] = font.fontWeight;
-      }
-
-      if (font.fontSize !== undefined && textObj.fontSize !== font.fontSize) {
-        changedProps['fontSize'] = font.fontSize;
-      }
-
-      if (Object.keys(changedProps).length === 0) return;
-
-      const command = new UpdatePropertiesCommand(canvas, textObj, changedProps, () => {
-        this.canvasEventHandler.emitObjectProperties(textObj);
-      });
-
-      this.commandManager.execute(command);
     }
   }
 
