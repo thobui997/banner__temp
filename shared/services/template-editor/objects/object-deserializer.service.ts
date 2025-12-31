@@ -19,8 +19,8 @@ export class ObjectDeserializerService {
     const metadataMap = new Map<number, any>();
     const colorPresetMap = new Map<number, any>();
 
-    // Collect all font+weight combinations that need to be loaded
-    const fontsToLoad = new Map<string, Set<number>>();
+    // Collect all fonts that need to be loaded
+    const fontsToLoad = new Set<string>();
 
     const cleanObjects = jsonData.objects.map((obj: any, index: number) => {
       if (obj.customMetadata) metadataMap.set(index, obj.customMetadata);
@@ -29,7 +29,7 @@ export class ObjectDeserializerService {
       // Collect fonts from text objects
       if (obj.type === 'textbox' || obj.type === 'i-text' || obj.type === 'IText') {
         if (obj.fontFamily) {
-          this.addFontToLoad(fontsToLoad, obj.fontFamily, obj.fontWeight || 400);
+          fontsToLoad.add(obj.fontFamily);
         }
       }
 
@@ -40,7 +40,7 @@ export class ObjectDeserializerService {
             (subObj.type === 'textbox' || subObj.type === 'i-text' || subObj.type === 'IText') &&
             subObj.fontFamily
           ) {
-            this.addFontToLoad(fontsToLoad, subObj.fontFamily, subObj.fontWeight || 400);
+            fontsToLoad.add(subObj.fontFamily);
           }
         });
       }
@@ -54,24 +54,22 @@ export class ObjectDeserializerService {
     });
 
     try {
-      // Load all required font+weight combinations before enliving objects
+      // Load all required fonts before enliving objects
       if (fontsToLoad.size > 0) {
-        const fontLoadPromises: Promise<boolean>[] = [];
-        
-        fontsToLoad.forEach((weights, font) => {
-          weights.forEach(weight => {
-            fontLoadPromises.push(this.fontPreloader.loadFontOnDemand(font, weight));
-          });
-        });
+        const fontLoadPromises = Array.from(fontsToLoad).map((font) =>
+          this.fontPreloader.loadFontOnDemand(font)
+        );
 
         await Promise.all(fontLoadPromises);
+
+        // Wait for fonts to be ready in DOM
         await this.fontPreloader.waitForFontsReady();
+
+        // Add extra delay to ensure fonts are fully rendered
+        await this.delay(100);
       }
 
       const instances = await util.enlivenObjects(cleanObjects);
-
-      // Create hidden container to pre-render fonts with their specific weights
-      const hiddenContainer = this.createHiddenFontContainer(fontsToLoad);
 
       instances.forEach((obj: any, index: number) => {
         if (!obj) return;
@@ -79,6 +77,8 @@ export class ObjectDeserializerService {
         // Disable caching for text objects initially
         if (obj.type === 'textbox' || obj.type === 'i-text' || obj.type === 'IText') {
           obj.objectCaching = false;
+          obj.initDimensions();
+          obj.setCoords();
         }
 
         if (metadataMap.has(index)) {
@@ -98,83 +98,23 @@ export class ObjectDeserializerService {
         }
       });
 
-      // Wait for browser to render fonts in hidden container
-      await this.waitForFontRendering();
-
-      // Clean up hidden container
-      if (hiddenContainer.parentNode) {
-        hiddenContainer.parentNode.removeChild(hiddenContainer);
-      }
-
-      // Force text objects to recalculate dimensions with fully rendered fonts
-      instances.forEach((obj: any) => {
-        if (obj && (obj.type === 'textbox' || obj.type === 'i-text' || obj.type === 'IText')) {
-          obj.initDimensions();
-          obj.setCoords();
-          
-          requestAnimationFrame(() => {
-            obj.objectCaching = true;
-            obj.dirty = true;
-          });
-        }
-      });
-
       canvas.requestRenderAll();
 
+      // Re-enable caching after render
+      requestAnimationFrame(() => {
+        instances.forEach((obj: any) => {
+          if (obj && (obj.type === 'textbox' || obj.type === 'i-text' || obj.type === 'IText')) {
+            obj.objectCaching = true;
+          }
+        });
+        canvas.requestRenderAll();
+      });
     } catch (error) {
       console.error('Error during enliven:', error);
     }
   }
 
-  /**
-   * Add font+weight combination to load map
-   */
-  private addFontToLoad(fontsMap: Map<string, Set<number>>, font: string, weight: number): void {
-    if (!fontsMap.has(font)) {
-      fontsMap.set(font, new Set());
-    }
-    fontsMap.get(font)!.add(weight);
-  }
-
-  /**
-   * Create hidden container with text in all required fonts and weights
-   */
-  private createHiddenFontContainer(fonts: Map<string, Set<number>>): HTMLDivElement {
-    const container = document.createElement('div');
-    container.style.cssText = `
-      position: absolute;
-      left: -9999px;
-      top: -9999px;
-      visibility: hidden;
-      pointer-events: none;
-      white-space: pre;
-    `;
-
-    fonts.forEach((weights, font) => {
-      weights.forEach(weight => {
-        const textElement = document.createElement('div');
-        textElement.style.fontFamily = font;
-        textElement.style.fontWeight = weight.toString();
-        textElement.style.fontSize = '24px';
-        textElement.textContent = 'Choáng váng AaBbCcĐđ 123';
-        container.appendChild(textElement);
-      });
-    });
-
-    document.body.appendChild(container);
-    return container;
-  }
-
-  /**
-   * Wait for fonts to be fully rendered in the DOM
-   */
-  private waitForFontRendering(): Promise<void> {
-    return new Promise((resolve) => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setTimeout(resolve, 100);
-        });
-      });
-    });
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
