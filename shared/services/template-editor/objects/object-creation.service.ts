@@ -1,13 +1,13 @@
 import { inject, Injectable } from '@angular/core';
 import { FabricImage, Group, Pattern, Rect, Textbox } from 'fabric';
+import * as FontFaceObserver from 'fontfaceobserver';
 import { nanoid } from 'nanoid';
+import { AddObjectCommand } from '../../../commands';
+import { VariableType } from '../../../consts';
 import { CanvasStateService } from '../canvas/canvas-state.service';
 import { CommandManagerService } from '../command/command-manager.service';
 import { FrameManagementService } from '../frame/frame-management.service';
 import { LayerManagementService } from '../layers/layer-management.service';
-import { VariableType } from '../../../consts';
-import { AddObjectCommand } from '../../../commands';
-import { FontPreloaderService } from '@gsf/admin/app/shared/services/font-preloader.service';
 
 @Injectable()
 export class ObjectCreationService {
@@ -15,7 +15,6 @@ export class ObjectCreationService {
   private commandManager = inject(CommandManagerService);
   private frameManagement = inject(FrameManagementService);
   private layerManagement = inject(LayerManagementService);
-  private fontPreloader = inject(FontPreloaderService);
 
   private layerCounters = {
     text: 0,
@@ -33,13 +32,9 @@ export class ObjectCreationService {
     const layerName = `Text ${this.layerCounters.text}`;
 
     // Default font
-    const defaultFont = 'Roboto, Arial, sans-serif';
+    const defaultFont = 'Roboto';
 
-    // Ensure font is loaded before creating text
-    await this.fontPreloader.loadFontOnDemand(defaultFont);
-
-    // Wait for fonts to be ready
-    await this.fontPreloader.waitForFontsReady();
+    const font = new FontFaceObserver(defaultFont);
 
     const textObj = new Textbox(text, {
       left: position.left,
@@ -47,7 +42,6 @@ export class ObjectCreationService {
       width: 200,
       fontSize: 24,
       fill: '#000000',
-      fontFamily: defaultFont,
       fontWeight: 400,
       splitByGrapheme: false,
       lockScalingFlip: true,
@@ -69,6 +63,11 @@ export class ObjectCreationService {
       }
     });
 
+    await font.load(null, 60000);
+
+    textObj.set('fontFamily', defaultFont);
+    textObj.set('dirty', true);
+
     // Initialize dimensions with font loaded
     textObj.initDimensions();
     textObj.setCoords();
@@ -78,12 +77,6 @@ export class ObjectCreationService {
 
     const command = new AddObjectCommand(canvas, textObj);
     this.commandManager.execute(command);
-
-    // Re-enable caching after adding to canvas
-    requestAnimationFrame(() => {
-      textObj.objectCaching = true;
-      canvas.requestRenderAll();
-    });
   }
 
   async addImage(src: string) {
@@ -152,14 +145,11 @@ export class ObjectCreationService {
     // Default font for button
     const defaultFont = 'Roboto';
 
-    // Ensure font is loaded
-    await this.fontPreloader.loadFontOnDemand(defaultFont);
-    await this.fontPreloader.waitForFontsReady();
+    const font = new FontFaceObserver(defaultFont);
 
     const buttonText = new Textbox(text, {
       fontSize: 14,
       fill: '#FFFFFF',
-      fontFamily: defaultFont,
       fontWeight: 400,
       textAlign: 'center',
       width: minWidth - paddingHorizontal,
@@ -171,8 +161,14 @@ export class ObjectCreationService {
       top: 0
     });
 
-    // Initialize dimensions
+    await font.load(null, 60000);
+
+    buttonText.set('fontFamily', defaultFont);
+    buttonText.set('dirty', true);
+
+    // Initialize dimensions with font loaded
     buttonText.initDimensions();
+    buttonText.setCoords();
 
     const textWidth = buttonText.getBoundingRect().width;
     const buttonWidth = Math.max(minWidth, textWidth + paddingHorizontal);
@@ -220,12 +216,6 @@ export class ObjectCreationService {
 
     const command = new AddObjectCommand(canvas, groupObj);
     this.commandManager.execute(command);
-
-    // Re-enable caching for button text
-    requestAnimationFrame(() => {
-      buttonText.objectCaching = true;
-      canvas.requestRenderAll();
-    });
   }
 
   resetCounters(): void {
