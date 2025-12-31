@@ -1,8 +1,7 @@
-import { inject, Injectable } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { from, Observable, forkJoin, of, firstValueFrom } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { fontFamily } from '../consts';
-import { FontWeightManagerService } from './font-weight-manager.service';
 
 export interface FontLoadResult {
   fontFamily: string;
@@ -14,20 +13,22 @@ export interface FontLoadResult {
   providedIn: 'root'
 })
 export class FontPreloaderService {
-  private fontWeightManager = inject(FontWeightManagerService);
-  private loadedFonts = new Map<string, Set<number>>();
+  private loadedFonts = new Set<string>();
   private loadingPromise: Promise<FontLoadResult[]> | null = null;
 
-  // Google Fonts base URL
-  private readonly GOOGLE_FONTS_BASE = 'https://fonts.googleapis.com/css2';
-
+  /**
+   * Preload all fonts defined in text-font.const.ts
+   */
   preloadAllFonts(): Observable<FontLoadResult[]> {
+    // If already loading, return existing promise
     if (this.loadingPromise) {
       return from(this.loadingPromise);
     }
 
-    const fontFamilies = fontFamily.map((f) => f.value);
+    // Get all font families from config
+    const fontFamilies = fontFamily.map((f) => this.extractFontName(f.value));
 
+    // Load all fonts in parallel
     const loadObservables = fontFamilies.map((fontName) =>
       this.loadSingleFont(fontName).pipe(
         catchError((error) =>
@@ -41,14 +42,20 @@ export class FontPreloaderService {
     );
 
     const observable = forkJoin(loadObservables);
+
+    // Cache the loading promise
     this.loadingPromise = firstValueFrom(observable);
 
     return observable;
   }
 
+  /**
+   * Load a single font using Font Loading API
+   */
   private loadSingleFont(fontFamily: string): Observable<FontLoadResult> {
     return from(this.loadFontAsync(fontFamily)).pipe(
       map(() => {
+        this.loadedFonts.add(fontFamily);
         return {
           fontFamily,
           loaded: true
@@ -58,128 +65,104 @@ export class FontPreloaderService {
   }
 
   /**
-   * Load font with all required weights using FontFace API
+   * Load font asynchronously using Font Loading API with proper verification
    */
-  private async loadFontAsync(fontFamily: string, weight?: number): Promise<void> {
-    const fontName = this.extractFontName(fontFamily);
-    
-    if (!('fonts' in document)) {
-      console.warn('FontFace API not supported');
+  private async loadFontAsync(fontFamily: string): Promise<void> {
+    // Check if font is already loaded
+    if (this.loadedFonts.has(fontFamily)) {
       return Promise.resolve();
     }
 
-    const weightsToLoad = weight 
-      ? [weight] 
-      : this.getAvailableWeights(fontFamily);
+    // Check if Font Loading API is available
+    if (!('fonts' in document)) {
+      return Promise.resolve();
+    }
 
-    const loadPromises = weightsToLoad.map(async (w) => {
-      // Check if already loaded
-      const loadedWeights = this.loadedFonts.get(fontFamily);
-      if (loadedWeights?.has(w)) {
-        return;
-      }
-
-      try {
-        // Get font URL from Google Fonts
-        const fontUrl = await this.getFontUrl(fontName, w);
-        
-        // Create FontFace instance
-        const fontFace = new FontFace(fontName, `url(${fontUrl})`, {
-          style: 'normal',
-          weight: w.toString(),
-          display: 'swap'
-        });
-
-        // Load the font
-        await fontFace.load();
-
-        // Add to document fonts
-        (document as any).fonts.add(fontFace);
-
-        // Track loaded font
-        if (!this.loadedFonts.has(fontFamily)) {
-          this.loadedFonts.set(fontFamily, new Set());
-        }
-        this.loadedFonts.get(fontFamily)!.add(w);
-
-        console.log(`✓ Loaded ${fontName} weight ${w}`);
-      } catch (error) {
-        console.warn(`Failed to load ${fontName} weight ${w}:`, error);
-      }
-    });
+    const weights = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+    const loadPromises = weights.map((weight) =>
+      (document as any).fonts.load(`${weight} 24px "${fontFamily}"`)
+    );
 
     await Promise.all(loadPromises);
-    
-    // Wait for fonts to be ready in document
+
+    // Wait for fonts to be ready in DOM
     await (document as any).fonts.ready;
+
+    // Verify font is actually loaded by checking availability
+    const isFontAvailable = await this.verifyFontLoaded(fontFamily);
+
+    if (!isFontAvailable) {
+      throw new Error(`Font ${fontFamily} not available after loading`);
+    }
   }
 
   /**
-   * Get font URL from Google Fonts API
+   * Verify font is actually loaded and available
    */
-  private async getFontUrl(fontFamily: string, weight: number): Promise<string> {
-    // Build Google Fonts CSS URL
-    const fontParam = fontFamily.replace(/ /g, '+');
-    const url = `${this.GOOGLE_FONTS_BASE}?family=${fontParam}:wght@${weight}&display=swap`;
+  private async verifyFontLoaded(fontFamily: string): Promise<boolean> {
+    // Create a test element to verify font rendering
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
 
-    try {
-      // Fetch CSS from Google Fonts
-      const response = await fetch(url);
-      const cssText = await response.text();
+    if (!ctx) return false;
 
-      // Extract woff2 URL from CSS
-      const woff2Match = cssText.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.woff2)\)/);
-      
-      if (woff2Match && woff2Match[1]) {
-        return woff2Match[1];
-      }
+    // Measure text with the target font
+    ctx.font = `16px "${fontFamily}"`;
+    const targetWidth = ctx.measureText('abcdefghijklmnopqrstuvwxyz').width;
 
-      throw new Error(`Could not extract font URL for ${fontFamily} weight ${weight}`);
-    } catch (error) {
-      console.error(`Error fetching font URL for ${fontFamily}:`, error);
-      throw error;
-    }
+    // Measure text with fallback font
+    ctx.font = '16px sans-serif';
+    const fallbackWidth = ctx.measureText('abcdefghijklmnopqrstuvwxyz').width;
+
+    // If widths are different, font is loaded
+    return Math.abs(targetWidth - fallbackWidth) > 1;
   }
 
-  private getAvailableWeights(fontFamily: string): number[] {
-    const weights = this.fontWeightManager.getAvailableWeights(fontFamily);
-    return weights.map(w => w.value);
-  }
+  /**
+   * Load a specific font on-demand (used when creating/updating text objects)
+   */
+  async loadFontOnDemand(fontFamily: string): Promise<boolean> {
+    const fontName = this.extractFontName(fontFamily);
 
-  async loadFontOnDemand(fontFamily: string, weight?: number): Promise<boolean> {
-    if (weight) {
-      const loadedWeights = this.loadedFonts.get(fontFamily);
-      if (loadedWeights?.has(weight)) {
-        return true;
-      }
+    if (this.loadedFonts.has(fontName)) {
+      return true;
     }
 
     try {
-      await this.loadFontAsync(fontFamily, weight);
+      await this.loadFontAsync(fontName);
       return true;
     } catch (error) {
-      console.error(`Failed to load font ${fontFamily} weight ${weight}:`, error);
       return false;
     }
   }
 
+  /**
+   * Extract font name from font value string
+   * Example: '"Roboto", serif' => 'Roboto'
+   */
   private extractFontName(fontValue: string): string {
+    // Remove quotes and everything after comma
     return fontValue.replace(/['"]/g, '').split(',')[0].trim();
   }
 
-  isFontLoaded(fontFamily: string, weight?: number): boolean {
-    const loadedWeights = this.loadedFonts.get(fontFamily);
-    
-    if (!loadedWeights) return false;
-    if (!weight) return loadedWeights.size > 0;
-    
-    return loadedWeights.has(weight);
+  /**
+   * Check if a font is loaded
+   */
+  isFontLoaded(fontFamily: string): boolean {
+    const fontName = this.extractFontName(fontFamily);
+    return this.loadedFonts.has(fontName);
   }
 
-  getLoadedFonts(): Map<string, Set<number>> {
-    return new Map(this.loadedFonts);
+  /**
+   * Get all loaded fonts
+   */
+  getLoadedFonts(): string[] {
+    return Array.from(this.loadedFonts);
   }
 
+  /**
+   * Wait for fonts to be ready (alternative method using FontFaceSet)
+   */
   waitForFontsReady(): Promise<void> {
     if ('fonts' in document) {
       return (document as any).fonts.ready;
@@ -187,6 +170,9 @@ export class FontPreloaderService {
     return Promise.resolve();
   }
 
+  /**
+   * Clear loaded fonts cache (for testing)
+   */
   clearCache(): void {
     this.loadedFonts.clear();
     this.loadingPromise = null;
