@@ -59,6 +59,19 @@ export class UpdateTextSelectionStylesCommand extends Command {
   private applyStylesToSelection(styles: Record<string, any>): void {
     this.textObj.objectCaching = false;
 
+    if (!styles['fontFamily']) {
+      // Apply styles directly if no font change
+      this.textObj.setSelectionStyles(styles, this.selectionStart, this.selectionEnd);
+      this.textObj.initDimensions();
+      this.textObj.setCoords();
+      this.textObj.dirty = true;
+      requestAnimationFrame(() => {
+        this.textObj.objectCaching = true;
+        this.canvas.requestRenderAll();
+      });
+      return;
+    }
+
     const font = new FontFaceObserver(styles['fontFamily']);
 
     font.load(null, 60000).then(() => {
