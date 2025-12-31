@@ -1,6 +1,6 @@
-// template-editor/update-text-selection-styles.command.ts
 import { Canvas, IText, Textbox } from 'fabric';
 import { Command } from '../../types';
+import * as FontFaceObserver from 'fontfaceobserver';
 
 export class UpdateTextSelectionStylesCommand extends Command {
   private oldStylesSnapshot: any = null;
@@ -59,17 +59,20 @@ export class UpdateTextSelectionStylesCommand extends Command {
   private applyStylesToSelection(styles: Record<string, any>): void {
     this.textObj.objectCaching = false;
 
-    // Apply styles
-    this.textObj.setSelectionStyles(styles, this.selectionStart, this.selectionEnd);
+    const font = new FontFaceObserver(styles['fontFamily']);
 
-    // Re-calculate dimensions
-    this.textObj.initDimensions();
-    this.textObj.setCoords();
-    this.textObj.dirty = true;
+    font.load(null, 60000).then(() => {
+      // Apply styles
+      this.textObj.setSelectionStyles(styles, this.selectionStart, this.selectionEnd);
+      // Re-calculate dimensions
+      this.textObj.initDimensions();
+      this.textObj.setCoords();
+      this.textObj.dirty = true;
 
-    requestAnimationFrame(() => {
-      this.textObj.objectCaching = true;
-      this.canvas.requestRenderAll();
+      requestAnimationFrame(() => {
+        this.textObj.objectCaching = true;
+        this.canvas.requestRenderAll();
+      });
     });
   }
 
